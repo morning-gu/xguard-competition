@@ -1,0 +1,27 @@
+# Python 依赖 - YuFeng-XGuard-Reason 模型
+
+# 核心深度学习框架
+torch>=2.0.0
+transformers>=4.37.0
+accelerate>=0.25.0
+
+# ModelScope (用于从魔搭社区下载模型)
+modelscope>=1.9.0
+
+# 数据处理
+pandas>=2.0.0
+numpy>=1.24.0
+
+# 工具库
+tqdm>=4.66.0
+pyyaml>=6.0
+loguru>=0.7.0
+
+# Tokenizer 相关
+sentencepiece>=0.1.99
+protobuf>=3.20.0
+
+# 开发工具
+pytest>=7.4.0
+jupyter>=1.0.0
+ipykernel>=6.0.0
