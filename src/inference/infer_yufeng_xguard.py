@@ -10,34 +10,68 @@ YuFeng-XGuard-Reason-0.6B 模型下载与推理脚本
 - 用途: 内容安全护栏模型，识别文本中的安全风险
 """
 
+import os
+from pathlib import Path
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+# 本地模型默认路径（相对于项目根目录）
+_DEFAULT_LOCAL_MODEL_PATH = "models/pretrained/Alibaba-AAIG/YuFeng-XGuard-Reason-0___6B"
 
-def load_model_and_tokenizer(model_name: str = "Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B"):
+
+def _resolve_model_path(model_name: str) -> str:
     """
-    加载模型和分词器
-    
+    解析模型路径：如果传入的是 HuggingFace 模型 ID 格式（包含 /），
+    则尝试在本地 models/pretrained 目录下查找对应的本地路径。
+
     Args:
         model_name: 模型名称或路径
-        
+
+    Returns:
+        解析后的模型路径（本地绝对路径或原始模型 ID）
+    """
+    # 如果已经是本地绝对路径且目录存在，直接返回
+    if os.path.isdir(model_name):
+        return model_name
+
+    # 尝试在项目根目录下查找本地模型
+    project_root = Path(__file__).resolve().parents[2]  # src/inference/ -> 项目根目录
+    local_path = project_root / _DEFAULT_LOCAL_MODEL_PATH
+    if local_path.is_dir():
+        print(f"使用本地模型路径: {local_path}")
+        return str(local_path)
+
+    # 本地未找到，回退到远程模型 ID
+    print(f"本地未找到模型，将使用远程模型 ID: {model_name}")
+    return model_name
+
+
+def load_model_and_tokenizer(model_name: str = _DEFAULT_LOCAL_MODEL_PATH):
+    """
+    加载模型和分词器
+
+    Args:
+        model_name: 模型名称或本地路径（默认使用本地预训练模型目录）
+
     Returns:
         model, tokenizer
     """
-    print(f"正在加载模型: {model_name}")
-    
+    model_path = _resolve_model_path(model_name)
+    print(f"正在加载模型: {model_path}")
+
     tokenizer = AutoTokenizer.from_pretrained(
-        model_name,
+        model_path,
         trust_remote_code=True
     )
-    
+
     model = AutoModelForCausalLM.from_pretrained(
-        model_name,
+        model_path,
         torch_dtype="auto",
         device_map="auto",
         trust_remote_code=True
     ).eval()
-    
+
     print("模型加载完成!")
     return model, tokenizer
 

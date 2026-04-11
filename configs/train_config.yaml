@@ -1,0 +1,95 @@
+# XGuard 训练配置文件
+
+# 模型配置
+model:
+  # 基座模型 (10B 及以下，符合赛道要求)
+  base_model: "Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B"
+  # 模型架构: Qwen3ForCausalLM
+  trust_remote_code: true
+  # 使用 4-bit 量化加载 (节省显存，适用于小卡训练)
+  use_4bit: false
+  # 使用 8-bit 量化加载
+  use_8bit: false
+
+# 数据配置
+data:
+  # 原始数据路径 (下载后自动填充)
+  raw_data_path: "data/raw/xguard_train_200k/train.csv"
+  # 预处理数据缓存目录
+  processed_dir: "data/processed"
+  # 训练模式: prompt_safety / response_safety / reasoning
+  mode: "prompt_safety"
+  # 最大序列长度
+  max_length: 2048
+  # 训练集比例
+  train_ratio: 0.9
+  # 随机种子
+  seed: 42
+
+# 训练超参数
+training:
+  # 输出目录
+  output_dir: "models/checkpoints/xguard-finetuned"
+  # 训练轮数
+  num_train_epochs: 3
+  # 批大小 (per device)
+  per_device_train_batch_size: 4
+  # 梯度累积步数 (等效批大小 = batch_size * gradient_accumulation_steps)
+  gradient_accumulation_steps: 4
+  # 学习率
+  learning_rate: 2.0e-5
+  # 学习率调度器类型
+  lr_scheduler_type: "cosine"
+  # 预热步数
+  warmup_steps: 100
+  # 权重衰减
+  weight_decay: 0.01
+  # 最大梯度范数
+  max_grad_norm: 1.0
+  # FP16 训练
+  fp16: true
+  # BF16 训练 (优先于 fp16)
+  bf16: false
+  # 梯度检查点 (节省显存)
+  gradient_checkpointing: true
+  # 数据加载线程数
+  dataloader_num_workers: 4
+  # 训练日志间隔
+  logging_steps: 10
+  # 评估间隔 (步数)
+  eval_steps: 500
+  # 保存间隔 (步数)
+  save_steps: 500
+  # 最多保存检查点数
+  save_total_limit: 3
+  # 早停耐心值
+  early_stopping_patience: 5
+
+# LoRA 配置 (参数高效微调)
+lora:
+  # 是否启用 LoRA
+  enabled: true
+  # LoRA 秩
+  r: 16
+  # LoRA alpha
+  lora_alpha: 32
+  # LoRA dropout
+  lora_dropout: 0.05
+  # 目标模块
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+  # 任务类型
+  task_type: "CAUSAL_LM"
+
+# 评估配置
+evaluation:
+  # 评估批大小
+  per_device_eval_batch_size: 8
+  # 评估数据量 (null 表示使用全部验证集)
+  eval_samples: null
