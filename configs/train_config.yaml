@@ -7,7 +7,7 @@ model:
   # 模型架构: Qwen3ForCausalLM
   trust_remote_code: true
   # 使用 4-bit 量化加载 (节省显存，适用于小卡训练)
-  use_4bit: false
+  use_4bit: true
   # 使用 8-bit 量化加载
   use_8bit: false
 
@@ -93,7 +93,7 @@ lora:
 
 # 评估配置
 evaluation:
-  # 评估批大小
-  per_device_eval_batch_size: 8
+  # 评估批大小 (降低以避免评估时 OOM)
+  per_device_eval_batch_size: 4
   # 评估数据量 (null 表示使用全部验证集)
   eval_samples: null
