@@ -40,8 +40,8 @@ def main():
         "--mode",
         type=str,
         default=None,
-        choices=["prompt_safety", "response_safety", "reasoning"],
-        help="训练模式 (覆盖配置文件)",
+        choices=["prompt_safety", "response_safety", "reasoning", "all"],
+        help="训练模式 (覆盖配置文件): prompt_safety/response_safety/reasoning/all",
     )
     parser.add_argument(
         "--epochs",

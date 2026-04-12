@@ -209,6 +209,12 @@ def _process_jsonl_item(raw_item: dict, mode: str) -> dict | None:
     处理 JSONL 单条数据
     
     根据数据集的实际字段,提取 messages 和 label
+    
+    mode 参数说明:
+    - prompt_safety: 仅训练 stage=q 的样本 (仅 prompt)
+    - response_safety: 仅训练 stage=qr 的样本 (prompt + response)
+    - reasoning: 带 explanation 的样本
+    - all: 训练所有样本,根据 stage 自动判断输入格式
     """
     # 提取字段
     prompt = raw_item.get("prompt")
@@ -221,21 +227,47 @@ def _process_jsonl_item(raw_item: dict, mode: str) -> dict | None:
     # 构建 messages
     messages = []
     
-    # 添加用户输入
-    if prompt and prompt.strip():
-        messages.append({"role": "user", "content": prompt.strip()})
-    elif response and response.strip() and stage == "qr":
-        # 如果没有 prompt 但有 response,可能是纯响应评估
-        # 这种情况下我们跳过,因为必须要有用户输入
-        return None
+    if mode == "all":
+        # all 模式: 根据 stage 自动判断输入格式
+        if stage == "q":
+            # 仅 prompt
+            if prompt and prompt.strip():
+                messages.append({"role": "user", "content": prompt.strip()})
+            else:
+                return None
+        elif stage == "r":
+            # 仅 response (作为 assistant 消息)
+            if response and response.strip():
+                messages.append({"role": "assistant", "content": response.strip()})
+            else:
+                return None
+        elif stage == "qr":
+            # prompt + response
+            if prompt and prompt.strip():
+                messages.append({"role": "user", "content": prompt.strip()})
+            if response and response.strip():
+                messages.append({"role": "assistant", "content": response.strip()})
+            if not messages:
+                return None
+        else:
+            return None
     else:
-        # 既没有 prompt 也没有有效的 response
-        return None
-    
-    # 根据模式添加 assistant 响应
-    if mode in ("response_safety", "reasoning"):
-        if response and response.strip():
-            messages.append({"role": "assistant", "content": response.strip()})
+        # 原有逻辑: prompt_safety / response_safety / reasoning
+        # 添加用户输入
+        if prompt and prompt.strip():
+            messages.append({"role": "user", "content": prompt.strip()})
+        elif response and response.strip() and stage == "qr":
+            # 如果没有 prompt 但有 response,可能是纯响应评估
+            # 这种情况下我们跳过,因为必须要有用户输入
+            return None
+        else:
+            # 既没有 prompt 也没有有效的 response
+            return None
+        
+        # 根据模式添加 assistant 响应
+        if mode in ("response_safety", "reasoning"):
+            if response and response.strip():
+                messages.append({"role": "assistant", "content": response.strip()})
     
     if not messages:
         return None

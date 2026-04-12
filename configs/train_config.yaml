@@ -17,8 +17,12 @@ data:
   raw_data_path: "data/XGuard-Train-Open-200K/xguard_train_open_200k.jsonl"
   # 预处理数据缓存目录
   processed_dir: "data/processed"
-  # 训练模式: prompt_safety / response_safety / reasoning
-  mode: "prompt_safety"
+  # 训练模式: prompt_safety / response_safety / reasoning / all
+  # - prompt_safety: 仅训练 stage=q 的样本 (仅 prompt)
+  # - response_safety: 仅训练 stage=qr 的样本 (prompt + response)
+  # - reasoning: 带 explanation 的样本
+  # - all: 训练所有样本,根据 stage 自动判断输入格式
+  mode: "all"
   # 最大序列长度
   max_length: 2048
   # 训练集比例
