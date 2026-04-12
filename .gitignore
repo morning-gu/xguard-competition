@@ -37,10 +37,12 @@ ENV/
 .ipynb_checkpoints/
 
 # Data
-data/raw/*
-data/processed/*
-!data/raw/.gitkeep
-!data/processed/.gitkeep
+data/
+!data/test_dataset/
+!data/test_dataset/.gitkeep
+
+# Results
+results/
 
 # Models
 models/pretrained/*
