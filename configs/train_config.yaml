@@ -13,8 +13,8 @@ model:
 
 # 数据配置
 data:
-  # 原始数据路径 (下载后自动填充)
-  raw_data_path: "data/raw/xguard_train_200k/train.csv"
+  # 原始数据路径 (JSONL 格式)
+  raw_data_path: "data/XGuard-Train-Open-200K/xguard_train_open_200k.jsonl"
   # 预处理数据缓存目录
   processed_dir: "data/processed"
   # 训练模式: prompt_safety / response_safety / reasoning

@@ -17,7 +17,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # 本地模型默认路径（相对于项目根目录）
-_DEFAULT_LOCAL_MODEL_PATH = "models/pretrained/Alibaba-AAIG/YuFeng-XGuard-Reason-0___6B"
+_DEFAULT_LOCAL_MODEL_PATH = "models/pretrained/Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B"
 
 
 def _resolve_model_path(model_name: str) -> str:
@@ -126,19 +126,21 @@ def infer(model, tokenizer, messages, policy=None, max_new_tokens=1, reason_firs
     ):
         generated_tokens_with_prob = []
         for token, topk_value, topk_index in zip(
-            generated_token, score_topk_value, scores_topk_index
+            generated_token, score_topk_value, score_topk_index
         ):
-            token = int(token.cpu())
+            token = token.item()
             if token == tokenizer.pad_token_id:
                 continue
             
             res_topk_score = {}
             for ii, (value, index) in enumerate(zip(topk_value, topk_index)):
-                if ii == 0 or value.cpu().numpy() > 1e-4:
-                    text = tokenizer.decode(index.cpu().numpy())
+                prob_val = value.item()
+                idx_val = index.item()
+                if ii == 0 or prob_val > 1e-4:
+                    text = tokenizer.decode(idx_val)
                     res_topk_score[text] = {
-                        "id": str(int(index.cpu().numpy())),
-                        "prob": round(float(value.cpu().numpy()), 4),
+                        "id": str(idx_val),
+                        "prob": round(prob_val, 4),
                     }
 
             generated_tokens_with_prob.append(res_topk_score)

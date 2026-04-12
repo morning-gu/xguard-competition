@@ -144,7 +144,7 @@ def preprocess_raw_data(
     预处理原始数据集，转换为训练格式
 
     Args:
-        input_path: 原始 CSV 数据路径
+        input_path: 原始数据路径 (CSV 或 JSONL)
         output_path: 处理后 JSON 数据保存路径
         mode: 训练模式
 
@@ -153,15 +153,46 @@ def preprocess_raw_data(
     """
     logger.info(f"预处理数据: {input_path} -> {output_path}, 模式: {mode}")
 
-    df = pd.read_csv(input_path)
-    logger.info(f"原始数据量: {len(df)} 条, 列: {list(df.columns)}")
+    # 判断文件格式
+    if input_path.endswith('.jsonl'):
+        # JSONL 格式
+        processed_data = []
+        total_count = 0
+        skipped_count = 0
+        
+        with open(input_path, "r", encoding="utf-8") as f:
+            for line_idx, line in enumerate(f):
+                line = line.strip()
+                if not line:
+                    continue
+                
+                try:
+                    raw_item = json.loads(line)
+                except json.JSONDecodeError as e:
+                    logger.warning(f"第 {line_idx+1} 行 JSON 解析失败: {e}")
+                    skipped_count += 1
+                    continue
+                
+                item = _process_jsonl_item(raw_item, mode)
+                
+                if item is not None:
+                    processed_data.append(item)
+                    total_count += 1
+                else:
+                    skipped_count += 1
+        
+        logger.info(f"原始数据量: {total_count} 条, 跳过 {skipped_count} 条")
+    else:
+        # CSV 格式
+        df = pd.read_csv(input_path)
+        logger.info(f"原始数据量: {len(df)} 条, 列: {list(df.columns)}")
 
-    processed_data = []
+        processed_data = []
 
-    for _, row in df.iterrows():
-        item = _process_row(row, mode)
-        if item is not None:
-            processed_data.append(item)
+        for _, row in df.iterrows():
+            item = _process_row(row, mode)
+            if item is not None:
+                processed_data.append(item)
 
     logger.info(f"处理后数据量: {len(processed_data)} 条")
 
@@ -171,6 +202,55 @@ def preprocess_raw_data(
 
     logger.info(f"数据已保存: {output_path}")
     return output_path
+
+
+def _process_jsonl_item(raw_item: dict, mode: str) -> dict | None:
+    """
+    处理 JSONL 单条数据
+    
+    根据数据集的实际字段,提取 messages 和 label
+    """
+    # 提取字段
+    prompt = raw_item.get("prompt")
+    response = raw_item.get("response")
+    label = raw_item.get("label")
+    explanation = raw_item.get("explanation")
+    sample_type = raw_item.get("sample_type", "general")
+    stage = raw_item.get("stage", "q")
+    
+    # 构建 messages
+    messages = []
+    
+    # 添加用户输入
+    if prompt and prompt.strip():
+        messages.append({"role": "user", "content": prompt.strip()})
+    elif response and response.strip() and stage == "qr":
+        # 如果没有 prompt 但有 response,可能是纯响应评估
+        # 这种情况下我们跳过,因为必须要有用户输入
+        return None
+    else:
+        # 既没有 prompt 也没有有效的 response
+        return None
+    
+    # 根据模式添加 assistant 响应
+    if mode in ("response_safety", "reasoning"):
+        if response and response.strip():
+            messages.append({"role": "assistant", "content": response.strip()})
+    
+    if not messages:
+        return None
+    
+    # 构建训练样本
+    item = {
+        "messages": messages,
+        "label": label if label else "sec",  # 默认安全
+    }
+    
+    # reasoning 模式添加解释
+    if mode == "reasoning" and explanation and explanation.strip():
+        item["explanation"] = explanation.strip()
+    
+    return item
 
 
 def _process_row(row: pd.Series, mode: str) -> dict | None:
