@@ -7,6 +7,7 @@ accelerate>=0.25.0
 
 # ModelScope (用于从魔搭社区下载模型和数据集)
 modelscope>=1.9.0
+addict>=2.4.0
 
 # 数据处理
 pandas>=2.0.0
