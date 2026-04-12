@@ -105,7 +105,7 @@ class XGuardTrainDataset(Dataset):
         encodings = self.tokenizer(
             text,
             truncation=True,
-            max_length=self.max_length,
+            max_length=self.max_length - 1,  # 预留 1 个位置给 label token
             padding=False,
             return_tensors=None,
         )
