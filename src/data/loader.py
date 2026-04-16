@@ -82,7 +82,10 @@ def download_train_dataset(dataset_id: str = None) -> str:
         raise ImportError("请安装 modelscope: pip install modelscope")
     
     dataset_id = dataset_id or DEFAULT_TRAIN_DATASET_ID
+    
+    # 获取本地缓存目录
     local_dir = get_dataset_cache_dir()
+    
     output_file = local_dir / "xguard_train_open_200k.jsonl"
     
     logger.info(f"正在下载数据集：{dataset_id}")

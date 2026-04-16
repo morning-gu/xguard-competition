@@ -5,7 +5,6 @@
 
 提供统一的模型加载接口，支持：
 - 自动从 ModelScope/HuggingFace 下载模型到本地缓存
-- 从本地缓存加载模型
 - 支持量化加载（4-bit/8-bit）以节省显存
 """
 
@@ -33,28 +32,6 @@ MODEL_VERSIONS = {
 }
 
 
-def get_model_cache_dir(model_id: str) -> Path:
-    """
-    获取模型本地缓存目录
-    
-    Args:
-        model_id: 模型 ID (如 Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B)
-    
-    Returns:
-        本地缓存目录路径
-    """
-    project_root = Path(__file__).resolve().parents[2]  # src/model/ -> 项目根目录
-    model_name = model_id.split("/")[-1]
-    org_name = model_id.split("/")[0] if "/" in model_id else ""
-    
-    if org_name:
-        cache_dir = project_root / "models" / "pretrained" / org_name / model_name
-    else:
-        cache_dir = project_root / "models" / "pretrained" / model_name
-    
-    return cache_dir
-
-
 def download_model(model_id: str = None, model_version: str = "0.6B") -> str:
     """
     下载模型到本地缓存
@@ -79,19 +56,11 @@ def download_model(model_id: str = None, model_version: str = "0.6B") -> str:
     else:
         raise ValueError(f"不支持的模型版本：{model_version}, 支持的版本：{list(MODEL_VERSIONS.keys())}")
     
-    # 获取本地缓存目录
-    local_dir = get_model_cache_dir(final_model_id)
-    
     logger.info(f"正在下载模型：{final_model_id}")
-    logger.info(f"本地保存路径：{local_dir}")
     
-    # 确保目标目录存在
-    local_dir.mkdir(parents=True, exist_ok=True)
-    
-    # 下载模型
+    # 下载模型（modelscope 会自动缓存到 ~/.cache/modelscope）
     model_dir = snapshot_download(
         final_model_id,
-        local_dir=str(local_dir),
         revision="master"
     )
     
@@ -114,7 +83,7 @@ def load_model_and_tokenizer(
         model_path: 模型路径，可以是：
             - 本地绝对路径
             - HuggingFace/ModelScope 模型 ID
-            - None (使用默认模型，自动检查本地缓存或下载)
+            - None (使用默认模型，自动从 ModelScope 下载并缓存)
         model_version: 模型版本 (仅当 model_path=None 时使用)
         use_4bit: 是否使用 4-bit 量化加载
         use_8bit: 是否使用 8-bit 量化加载
@@ -126,25 +95,14 @@ def load_model_and_tokenizer(
     """
     # 解析模型路径
     if model_path is None:
-        # 使用默认模型，检查本地缓存
+        # 使用默认模型，直接下载（modelscope 会自动缓存）
         model_id = MODEL_VERSIONS.get(model_version, DEFAULT_MODEL_ID)
-        local_cache = get_model_cache_dir(model_id)
-        
-        if local_cache.exists():
-            logger.info(f"使用本地缓存模型：{local_cache}")
-            model_path = str(local_cache)
-        else:
-            logger.info(f"本地缓存不存在，开始下载模型：{model_id}")
-            model_path = download_model(model_id=model_id)
+        logger.info(f"下载默认模型：{model_id}")
+        model_path = download_model(model_id=model_id)
     elif "/" in model_path and not os.path.isdir(model_path):
-        # 看起来是模型 ID 格式，检查本地缓存
-        local_cache = get_model_cache_dir(model_path)
-        if local_cache.exists():
-            logger.info(f"使用本地缓存模型：{local_cache}")
-            model_path = str(local_cache)
-        else:
-            logger.info(f"本地缓存不存在，开始下载模型：{model_path}")
-            model_path = download_model(model_id=model_path)
+        # 看起来是模型 ID 格式，直接下载（modelscope 会自动缓存）
+        logger.info(f"下载模型：{model_path}")
+        model_path = download_model(model_id=model_path)
     else:
         # 本地路径
         logger.info(f"使用本地模型：{model_path}")
