@@ -1,8 +1,33 @@
+```
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.ENV
+.python-version
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git/modules/
+*.sublime-project
+*.sublime-workspace
+.pytest_cache/
+.mypy_cache/
+.hypothesis/
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -20,57 +45,18 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
-venv/
-env/
-ENV/
-.venv
-
-# IDE
-.idea/
+# IDEs
 .vscode/
+.idea/
 *.swp
 *.swo
-*~
 
-# Jupyter Notebook
-.ipynb_checkpoints/
-
-# Data
-data/
-!data/test_dataset/
-!data/test_dataset/.gitkeep
-
-# Results
-results/
-
-# Models
-models/pretrained/*
-models/checkpoints/*
-models/submissions/*
-!models/pretrained/.gitkeep
-!models/checkpoints/.gitkeep
-!models/submissions/.gitkeep
-
-# Logs
-*.log
-logs/
-
-# Environment variables
-.env
-.env.local
-
-# OS
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
-
-# Temporary files
-tmp/
-temp/
-*.tmp
-
-# Competition specific
-*.pth
-*.pt
-*.bin
-*.safetensors
+```

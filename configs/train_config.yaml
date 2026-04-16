@@ -36,8 +36,8 @@ training:
   output_dir: "models/checkpoints/xguard-finetuned"
   # 训练轮数
   num_train_epochs: 3
-  # 批大小 (per device)
-  per_device_train_batch_size: 4
+  # 批大小 (per device) - 已优化提升至 8
+  per_device_train_batch_size: 8
   # 梯度累积步数 (等效批大小 = batch_size * gradient_accumulation_steps)
   gradient_accumulation_steps: 4
   # 学习率
@@ -50,24 +50,28 @@ training:
   weight_decay: 0.01
   # 最大梯度范数
   max_grad_norm: 1.0
-  # FP16 训练
+  # FP16 训练 (在没有 GPU 或 BF16 不支持时使用)
   fp16: true
-  # BF16 训练 (优先于 fp16)
+  # BF16 训练 (优先于 fp16，已启用以获得更好性能和稳定性，需要 GPU 支持)
   bf16: false
   # 梯度检查点 (节省显存)
   gradient_checkpointing: true
-  # 数据加载线程数
-  dataloader_num_workers: 4
+  # 数据加载线程数 - 已优化提升至 8 以加速数据预处理
+  dataloader_num_workers: 8
   # 训练日志间隔
   logging_steps: 10
-  # 评估间隔 (步数)
-  eval_steps: 500
-  # 保存间隔 (步数)
-  save_steps: 500
+  # 评估间隔 (步数) - 已优化降低频率以加快训练
+  eval_steps: 1000
+  # 保存间隔 (步数) - 必须是 eval_steps 的整数倍
+  save_steps: 1000
   # 最多保存检查点数
   save_total_limit: 3
   # 早停耐心值
   early_stopping_patience: 5
+  # 启用 Torch Compile 编译优化 (PyTorch 2.0+)
+  torch_compile: true
+  # 使用 Flash Attention 2 (需要安装 flash-attn，可显著加速注意力计算)
+  use_flash_attention_2: true
 
 # LoRA 配置 (参数高效微调)
 lora:
