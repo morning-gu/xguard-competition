@@ -77,19 +77,25 @@ def download_train_dataset(dataset_id: str = None) -> str:
         数据集本地路径
     """
     try:
-        from modelscope import snapshot_download
+        from huggingface_hub import snapshot_download
     except ImportError:
-        raise ImportError("请安装 modelscope: pip install modelscope")
+        raise ImportError("请安装 huggingface_hub: pip install huggingface_hub")
     
     dataset_id = dataset_id or DEFAULT_TRAIN_DATASET_ID
     
-    logger.info(f"正在下载数据集：{dataset_id}")
+    # 设置数据集缓存目录到项目路径下
+    project_root = Path(__file__).resolve().parents[2]
+    cache_dir = project_root / "data" / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
     
-    # 使用 snapshot_download 下载数据集（modelscope 会自动缓存）
-    # 这与模型下载逻辑保持一致，避免 SSL 证书验证问题
+    logger.info(f"数据集缓存目录设置为: {cache_dir}")
+    logger.info(f"正在从 HuggingFace 下载数据集：{dataset_id}")
+    
+    # 使用 HuggingFace snapshot_download 下载数据集到指定缓存目录
     local_dir = snapshot_download(
-        dataset_id,
-        revision="master"
+        repo_id=dataset_id,
+        repo_type="dataset",
+        cache_dir=str(cache_dir)
     )
     
     logger.info(f"数据集下载完成！路径：{local_dir}")
@@ -372,50 +378,162 @@ def preprocess_data(
 ) -> str:
     """
     预处理原始数据集，转换为训练格式
-    
+
+    支持 JSONL 和 CSV 格式输入。
+
     Args:
-        input_path: 原始数据路径 (JSONL 格式)
+        input_path: 原始数据路径 (JSONL 或 CSV 格式)
         output_path: 处理后 JSON 数据保存路径
         mode: 训练模式
-    
+
     Returns:
         保存路径
     """
     logger.info(f"预处理数据：{input_path} -> {output_path}, 模式：{mode}")
-    
-    processed_data = []
-    total_count = 0
-    skipped_count = 0
-    
-    with open(input_path, "r", encoding="utf-8") as f:
-        for line_idx, line in enumerate(f):
-            line = line.strip()
-            if not line:
-                continue
-            
-            try:
-                raw_item = json.loads(line)
-            except json.JSONDecodeError as e:
-                logger.warning(f"第 {line_idx+1} 行 JSON 解析失败：{e}")
-                skipped_count += 1
-                continue
-            
-            item = _process_raw_item(raw_item, mode)
+
+    if input_path.endswith('.jsonl'):
+        # JSONL 格式
+        processed_data = []
+        total_count = 0
+        skipped_count = 0
+
+        with open(input_path, "r", encoding="utf-8") as f:
+            for line_idx, line in enumerate(f):
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
+                    raw_item = json.loads(line)
+                except json.JSONDecodeError as e:
+                    logger.warning(f"第 {line_idx+1} 行 JSON 解析失败：{e}")
+                    skipped_count += 1
+                    continue
+
+                item = _process_raw_item(raw_item, mode)
+                if item is not None:
+                    processed_data.append(item)
+                    total_count += 1
+                else:
+                    skipped_count += 1
+
+        logger.info(f"原始数据量：{total_count} 条，跳过 {skipped_count} 条")
+    else:
+        # CSV 格式
+        df = pd.read_csv(input_path)
+        logger.info(f"原始数据量：{len(df)} 条，列：{list(df.columns)}")
+
+        processed_data = []
+        for _, row in df.iterrows():
+            item = _process_row(row, mode)
             if item is not None:
                 processed_data.append(item)
-                total_count += 1
-            else:
-                skipped_count += 1
-    
-    logger.info(f"原始数据量：{total_count} 条，跳过 {skipped_count} 条")
+
     logger.info(f"处理后数据量：{len(processed_data)} 条")
-    
+
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(processed_data, f, ensure_ascii=False, indent=2)
-    
+
     logger.info(f"数据已保存：{output_path}")
     return output_path
+
+
+def _process_row(row: pd.Series, mode: str) -> Optional[dict]:
+    """
+    处理 CSV 单行数据
+
+    根据数据集的实际列名，提取 messages 和 label。
+    支持多种可能的列名格式。
+    """
+    # 尝试从不同列名中提取数据
+    user_content = (
+        row.get("prompt")
+        or row.get("query")
+        or row.get("user_input")
+        or row.get("instruction")
+        or row.get("input")
+    )
+
+    assistant_content = (
+        row.get("response")
+        or row.get("answer")
+        or row.get("assistant_response")
+        or row.get("output")
+    )
+
+    label = (
+        row.get("label")
+        or row.get("risk_label")
+        or row.get("risk_category")
+        or row.get("category")
+        or row.get("risk_type")
+    )
+
+    explanation = (
+        row.get("explanation")
+        or row.get("reason")
+        or row.get("reasoning")
+    )
+
+    if user_content is None or pd.isna(user_content):
+        return None
+
+    messages = [{"role": "user", "content": str(user_content)}]
+
+    if mode in ("response_safety", "reasoning") and assistant_content and not pd.isna(assistant_content):
+        messages.append({"role": "assistant", "content": str(assistant_content)})
+
+    item = {"messages": messages}
+
+    if label and not pd.isna(label):
+        item["label"] = str(label)
+    else:
+        item["label"] = "sec"
+
+    if mode == "reasoning" and explanation and not pd.isna(explanation):
+        item["explanation"] = str(explanation)
+
+    return item
+
+
+# 别名：保持向后兼容
+preprocess_raw_data = preprocess_data
+
+
+def load_and_preprocess(
+    raw_data_path: str,
+    tokenizer: AutoTokenizer,
+    max_length: int = 2048,
+    mode: str = "prompt_safety",
+    cache_dir: str = "data/processed",
+) -> XGuardTrainDataset:
+    """
+    一站式数据加载：预处理 + 构建数据集
+
+    Args:
+        raw_data_path: 原始数据路径 (JSONL 或 CSV)
+        tokenizer: 分词器
+        max_length: 最大序列长度
+        mode: 训练模式
+        cache_dir: 预处理数据缓存目录
+
+    Returns:
+        XGuardTrainDataset 实例
+    """
+    processed_path = os.path.join(cache_dir, f"xguard_{mode}.json")
+
+    if not os.path.exists(processed_path):
+        preprocess_data(raw_data_path, processed_path, mode)
+
+    dataset = XGuardTrainDataset(
+        data=processed_path,
+        tokenizer=tokenizer,
+        max_length=max_length,
+        mode=mode,
+    )
+
+    return dataset
 
 
 def create_dataloader(

@@ -39,7 +39,7 @@ model_dir = snapshot_download("Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B")
 ### 3. 运行推理
 
 ```bash
-python src/inference/infer_yufeng_xguard.py
+python src/inference/engine.py
 ```
 
 ## 代码示例
@@ -92,7 +92,7 @@ scores_topk_value, scores_topk_index = scores.topk(k=10, dim=-1)
 
 # 获取风险分数
 id2risk = tokenizer.init_kwargs['id2risk']
-# ... (详细解析代码见 infer_yufeng_xguard.py)
+# ... (详细解析代码见 engine.py)
 ```
 
 ### 多轮对话安全性检测

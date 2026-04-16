@@ -33,8 +33,17 @@ XGuard 护栏揭榜赛 - 标准化推理接口
     print(f"归因分析：{result['explanation']}")
 """
 
+import os
 import time
 from typing import List, Dict, Optional
+from pathlib import Path
+
+# 在导入任何其他模块之前设置 HuggingFace 缓存目录
+PROJECT_ROOT = Path(__file__).resolve().parent
+cache_dir = PROJECT_ROOT / "models" / "pretrained"
+cache_dir.mkdir(parents=True, exist_ok=True)
+os.environ['HF_HOME'] = str(cache_dir)
+os.environ['HF_HUB_CACHE'] = str(cache_dir / "hub")
 
 
 class Guardrail:

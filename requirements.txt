@@ -5,7 +5,10 @@ torch>=2.0.0
 transformers>=4.37.0
 accelerate>=0.25.0
 
-# ModelScope (用于从魔搭社区下载模型和数据集)
+# HuggingFace Hub (用于从 HuggingFace 下载数据集)
+huggingface_hub>=0.20.0
+
+# ModelScope (用于从魔搭社区下载模型)
 modelscope>=1.9.0
 addict>=2.4.0
 

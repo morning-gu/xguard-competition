@@ -13,17 +13,16 @@
 │   │   └── loader.py         # 模型加载（支持缓存本地）
 │   ├── data/                 # 数据集加载模块
 │   │   ├── __init__.py
-│   │   ├── loader.py         # 数据集加载（支持缓存本地）
-│   │   └── dataset.py        # 数据集处理和预处理
+│   │   ├── loader.py         # 数据集加载与预处理（统一模块）
+│   │   └── preprocess_xguard_data.py  # 独立数据预处理脚本
 │   ├── inference/            # 模型推理模块
 │   │   ├── __init__.py
-│   │   ├── engine.py         # 核心推理引擎
-│   │   └── infer_yufeng_xguard.py  # 原有推理脚本（保留兼容）
+│   │   └── engine.py         # 核心推理引擎
 │   ├── training/             # 模型训练模块
 │   │   ├── __init__.py
-│   │   ├── trainer.py        # 统一训练接口
+│   │   ├── trainer.py        # 训练兼容层
 │   │   ├── train.py          # 训练启动脚本
-│   │   └── train_core.py     # 原有训练核心（保留兼容）
+│   │   └── train_core.py     # 训练核心逻辑
 │   └── evaluation/           # 测试集校验模块
 │       ├── __init__.py
 │       └── evaluator.py      # 评估和校验

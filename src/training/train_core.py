@@ -24,9 +24,12 @@ import argparse
 from typing import Optional
 from pathlib import Path
 
+# 添加项目根目录到 sys.path
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, PROJECT_ROOT)
+
 import torch
 from transformers import (
-    AutoModelForCausalLM,
     AutoTokenizer,
     TrainingArguments,
     Trainer,
@@ -34,6 +37,9 @@ from transformers import (
     EarlyStoppingCallback,
 )
 from loguru import logger
+
+# 导入统一的模型加载器
+from src.model.loader import load_model_and_tokenizer
 
 # LoRA 支持
 try:
@@ -43,19 +49,12 @@ except ImportError:
     PEFT_AVAILABLE = False
     logger.warning("peft 未安装，LoRA 微调不可用。请安装: pip install peft")
 
-# 量化支持
-try:
-    from transformers import BitsAndBytesConfig
-    BNB_AVAILABLE = True
-except ImportError:
-    BNB_AVAILABLE = False
-
-# 添加项目根目录到 sys.path
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, PROJECT_ROOT)
-
-from src.data.dataset import XGuardTrainDataset, preprocess_raw_data, load_and_preprocess
-from src.data.loader import download_train_dataset
+from src.data.loader import (
+    XGuardTrainDataset,
+    preprocess_data as preprocess_raw_data,
+    load_and_preprocess,
+    download_train_dataset,
+)
 
 
 def load_config(config_path: str) -> dict:
@@ -103,92 +102,42 @@ def merge_config(config: dict, overrides: list[str]) -> dict:
 
 def _resolve_model_path(model_name: str) -> str:
     """
-    解析模型路径：如果传入的是 HuggingFace 模型 ID 格式（包含 /），
-    则尝试在本地 models/pretrained 目录下查找对应的本地路径。
+    解析模型路径：直接返回远程模型 ID
 
     Args:
         model_name: 模型名称或路径
 
     Returns:
-        解析后的模型路径（本地绝对路径或原始模型 ID）
+        原始模型 ID
     """
-    # 如果已经是本地绝对路径且目录存在，直接返回
-    if os.path.isdir(model_name):
-        return model_name
-
-    # 尝试在项目根目录下查找本地模型
-    project_root = Path(__file__).resolve().parents[2]  # src/training/ -> 项目根目录
-    local_path = project_root / "models/pretrained" / model_name
-    if local_path.is_dir():
-        logger.info(f"使用本地模型路径: {local_path}")
-        return str(local_path)
-
-    # 本地未找到，回退到远程模型 ID
-    logger.info(f"本地未找到模型，将使用远程模型 ID: {model_name}")
+    logger.info(f"使用远程模型 ID: {model_name}")
     return model_name
 
 
-def load_model_and_tokenizer(config: dict):
+def load_model_and_tokenizer_for_training(config: dict):
     """
-    加载基座模型和分词器
+    加载基座模型和分词器（用于训练）
 
-    支持全精度、4-bit、8-bit 量化加载
+    复用 src.model.loader 的统一加载接口
+
+    Args:
+        config: 训练配置字典
+
+    Returns:
+        (model, tokenizer) 元组
     """
     model_cfg = config["model"]
     model_name = model_cfg["base_model"]
 
-    # 解析本地模型路径
-    model_name = _resolve_model_path(model_name)
-
-    logger.info(f"加载基座模型: {model_name}")
-
-    # 量化配置
-    quantization_config = None
-    if model_cfg.get("use_4bit") and BNB_AVAILABLE:
-        quantization_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.bfloat16,
-            bnb_4bit_use_double_quant=True,
-        )
-        logger.info("使用 4-bit 量化加载")
-    elif model_cfg.get("use_8bit") and BNB_AVAILABLE:
-        quantization_config = BitsAndBytesConfig(load_in_8bit=True)
-        logger.info("使用 8-bit 量化加载")
-
-    # 加载分词器
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_name,
+    # 使用统一的模型加载器
+    model, tokenizer = load_model_and_tokenizer(
+        model_path=model_name,
+        use_4bit=model_cfg.get("use_4bit", False),
+        use_8bit=model_cfg.get("use_8bit", False),
         trust_remote_code=model_cfg.get("trust_remote_code", True),
-        padding_side="right",
+        use_flash_attention_2=model_cfg.get("use_flash_attention_2", False),
+        set_eval_mode=False,  # 训练时不设置为评估模式
     )
-
-    # 确保 pad_token 存在
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
-    # 加载模型
-    model_kwargs = {
-        "trust_remote_code": model_cfg.get("trust_remote_code", True),
-        "torch_dtype": torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16,
-    }
-    if quantization_config is not None:
-        model_kwargs["quantization_config"] = quantization_config
-    else:
-        model_kwargs["device_map"] = "auto"
-    
-    # Flash Attention 2 支持 (如果配置启用)
-    if model_cfg.get("use_flash_attention_2", False):
-        try:
-            from flash_attn import flash_attn_func  # 检查是否安装
-            model_kwargs["attn_implementation"] = "flash_attention_2"
-            logger.info("使用 Flash Attention 2 加速注意力计算")
-        except ImportError:
-            logger.warning("Flash Attention 2 未安装，将使用默认注意力实现。安装：pip install flash-attn")
-    
-    model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
-
-    logger.info(f"模型参数量: {sum(p.numel() for p in model.parameters()) / 1e9:.2f}B")
 
     return model, tokenizer
 
@@ -234,15 +183,17 @@ def prepare_data(config: dict, tokenizer: AutoTokenizer):
     data_cfg = config["data"]
     raw_data_path = data_cfg["raw_data_path"]
     if not os.path.exists(raw_data_path):
-        logger.error(f"原始数据不存在：{raw_data_path}")
-        logger.info("正在自动下载数据集...")
+        logger.info(f"原始数据不存在：{raw_data_path}，正在自动下载...")
         try:
-            download_train_dataset()
-            logger.info("数据集下载完成，请重新运行训练脚本")
+            local_dir = download_train_dataset()
+            # 下载完成后，在缓存目录中查找 JSONL 文件
+            from src.data.loader import _find_jsonl_file
+            raw_data_path = _find_jsonl_file(local_dir)
+            logger.info(f"自动定位数据文件：{raw_data_path}")
         except Exception as e:
             logger.error(f"数据集下载失败：{e}")
             logger.info("请手动运行：python -c \"from src.data.loader import download_train_dataset; download_train_dataset()\"")
-        sys.exit(1)
+            sys.exit(1)
 
 
     # 预处理数据
@@ -256,7 +207,7 @@ def prepare_data(config: dict, tokenizer: AutoTokenizer):
 
     # 加载完整数据集
     full_dataset = XGuardTrainDataset(
-        data_path=processed_path,
+        data=processed_path,
         tokenizer=tokenizer,
         max_length=data_cfg["max_length"],
         mode=mode,
@@ -332,7 +283,7 @@ def train(config: dict):
     logger.info("=" * 60)
 
     # 1. 加载模型和分词器
-    model, tokenizer = load_model_and_tokenizer(config)
+    model, tokenizer = load_model_and_tokenizer_for_training(config)
 
     # 2. 应用 LoRA (如果启用)
     lora_cfg = config.get("lora", {})

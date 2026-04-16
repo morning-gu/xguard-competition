@@ -12,6 +12,13 @@ import os
 from pathlib import Path
 from typing import Optional, Tuple
 
+# 在导入 transformers 之前设置 HuggingFace 缓存目录
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+cache_dir = PROJECT_ROOT / "models" / "pretrained"
+cache_dir.mkdir(parents=True, exist_ok=True)
+os.environ['HF_HOME'] = str(cache_dir)
+os.environ['HF_HUB_CACHE'] = str(cache_dir / "hub")
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from loguru import logger
@@ -22,6 +29,9 @@ try:
 except ImportError:
     BNB_AVAILABLE = False
     logger.warning("bitsandbytes 未安装，量化加载不可用")
+
+# 缓存目录设置（仅在首次导入时以 debug 级别输出，避免多进程数据加载时刷屏）
+logger.debug(f"HuggingFace 缓存目录设置为: {cache_dir}")
 
 
 # 默认模型配置
@@ -88,6 +98,8 @@ def load_model_and_tokenizer(
     use_8bit: bool = False,
     trust_remote_code: bool = True,
     device_map: str = "auto",
+    use_flash_attention_2: bool = True,
+    set_eval_mode: bool = True,
 ) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
     """
     加载模型和分词器
@@ -96,26 +108,26 @@ def load_model_and_tokenizer(
         model_path: 模型路径，可以是：
             - 本地绝对路径
             - HuggingFace/ModelScope 模型 ID
-            - None (使用默认模型，自动从 ModelScope 下载并缓存)
+            - None (使用默认模型)
         model_version: 模型版本 (仅当 model_path=None 时使用)
         use_4bit: 是否使用 4-bit 量化加载
         use_8bit: 是否使用 8-bit 量化加载
         trust_remote_code: 是否信任远程代码
         device_map: 设备映射策略
+        use_flash_attention_2: 是否使用 Flash Attention 2
+        set_eval_mode: 是否设置为评估模式（训练时应设为 False）
     
     Returns:
         (model, tokenizer) 元组
     """
     # 解析模型路径
     if model_path is None:
-        # 使用默认模型，直接下载（modelscope 会自动缓存）
-        model_id = MODEL_VERSIONS.get(model_version, DEFAULT_MODEL_ID)
-        logger.info(f"下载默认模型：{model_id}")
-        model_path = download_model(model_id=model_id)
+        # 使用默认模型
+        model_path = MODEL_VERSIONS.get(model_version, DEFAULT_MODEL_ID)
+        logger.info(f"使用默认模型：{model_path}")
     elif "/" in model_path and not os.path.isdir(model_path):
-        # 看起来是模型 ID 格式，直接下载（modelscope 会自动缓存）
-        logger.info(f"下载模型：{model_path}")
-        model_path = download_model(model_id=model_path)
+        # 看起来是模型 ID 格式
+        logger.info(f"使用远程模型 ID：{model_path}")
     else:
         # 本地路径
         logger.info(f"使用本地模型：{model_path}")
@@ -161,15 +173,19 @@ def load_model_and_tokenizer(
         model_kwargs["device_map"] = device_map
     
     # Flash Attention 2 支持
-    try:
-        from flash_attn import flash_attn_func
-        model_kwargs["attn_implementation"] = "flash_attention_2"
-        logger.info("使用 Flash Attention 2")
-    except ImportError:
-        logger.debug("Flash Attention 2 未安装，使用默认注意力实现")
+    if use_flash_attention_2:
+        try:
+            from flash_attn import flash_attn_func
+            model_kwargs["attn_implementation"] = "flash_attention_2"
+            logger.info("使用 Flash Attention 2")
+        except ImportError:
+            logger.debug("Flash Attention 2 未安装，使用默认注意力实现")
     
     model = AutoModelForCausalLM.from_pretrained(model_path, **model_kwargs)
-    model.eval()
+    
+    # 根据参数决定是否设置为评估模式
+    if set_eval_mode:
+        model.eval()
     
     param_count = sum(p.numel() for p in model.parameters())
     logger.info(f"模型加载完成，参数量：{param_count / 1e9:.2f}B")

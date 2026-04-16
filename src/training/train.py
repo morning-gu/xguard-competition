@@ -24,8 +24,17 @@ import argparse
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, PROJECT_ROOT)
 
+# 在导入任何其他模块之前设置 HuggingFace 缓存目录
+cache_dir = os.path.join(PROJECT_ROOT, "models", "pretrained")
+os.makedirs(cache_dir, exist_ok=True)
+os.environ['HF_HOME'] = cache_dir
+os.environ['HF_HUB_CACHE'] = os.path.join(cache_dir, "hub")
+
 from src.training.train_core import train, load_config, merge_config
 from loguru import logger
+
+# 缓存目录设置（debug 级别，避免多进程数据加载时刷屏）
+logger.debug(f"HuggingFace 缓存目录设置为: {cache_dir}")
 
 
 def main():

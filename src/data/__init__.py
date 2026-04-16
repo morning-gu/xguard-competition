@@ -4,9 +4,11 @@ from .loader import (
     load_test_dataset,
     download_train_dataset,
     preprocess_data,
+    preprocess_raw_data,
     create_dataloader,
     XGuardTrainDataset,
     RISK_ID_MAP,
+    load_and_preprocess,
 )
 
 __all__ = [
@@ -14,7 +16,9 @@ __all__ = [
     "load_test_dataset",
     "download_train_dataset",
     "preprocess_data",
+    "preprocess_raw_data",
     "create_dataloader",
     "XGuardTrainDataset",
     "RISK_ID_MAP",
+    "load_and_preprocess",
 ]
