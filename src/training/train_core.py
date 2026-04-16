@@ -55,6 +55,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 sys.path.insert(0, PROJECT_ROOT)
 
 from src.data.dataset import XGuardTrainDataset, preprocess_raw_data, load_and_preprocess
+from src.data.loader import download_train_dataset
 
 
 def load_config(config_path: str) -> dict:
@@ -231,12 +232,18 @@ def prepare_data(config: dict, tokenizer: AutoTokenizer):
         train_dataset, eval_dataset
     """
     data_cfg = config["data"]
-
     raw_data_path = data_cfg["raw_data_path"]
     if not os.path.exists(raw_data_path):
-        logger.error(f"原始数据不存在: {raw_data_path}")
-        logger.info("请先运行数据下载脚本: python scripts/download_dataset.py")
+        logger.error(f"原始数据不存在：{raw_data_path}")
+        logger.info("正在自动下载数据集...")
+        try:
+            download_train_dataset()
+            logger.info("数据集下载完成，请重新运行训练脚本")
+        except Exception as e:
+            logger.error(f"数据集下载失败：{e}")
+            logger.info("请手动运行：python -c \"from src.data.loader import download_train_dataset; download_train_dataset()\"")
         sys.exit(1)
+
 
     # 预处理数据
     mode = data_cfg["mode"]
