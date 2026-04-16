@@ -32,13 +32,14 @@ MODEL_VERSIONS = {
 }
 
 
-def download_model(model_id: str = None, model_version: str = "0.6B") -> str:
+def download_model(model_id: str = None, model_version: str = "0.6B", cache_dir: str = None) -> str:
     """
     下载模型到本地缓存
     
     Args:
         model_id: 完整模型 ID (可选，如指定则覆盖 model_version)
         model_version: 模型版本 ("0.6B" 或 "8B")
+        cache_dir: 缓存目录路径，默认为当前项目下的 models 目录
     
     Returns:
         模型本地路径
@@ -58,10 +59,22 @@ def download_model(model_id: str = None, model_version: str = "0.6B") -> str:
     
     logger.info(f"正在下载模型：{final_model_id}")
     
-    # 下载模型（modelscope 会自动缓存到 ~/.cache/modelscope）
+    # 设置缓存目录为当前项目下的 models 目录
+    if cache_dir is None:
+        # 获取项目根目录
+        project_root = Path(__file__).resolve().parents[2]
+        cache_dir = project_root / "models" / "pretrained"
+    
+    # 创建缓存目录
+    os.makedirs(cache_dir, exist_ok=True)
+    
+    logger.info(f"模型将下载到：{cache_dir}")
+    
+    # 下载模型到指定目录（使用 local_dir 参数）
     model_dir = snapshot_download(
         final_model_id,
-        revision="master"
+        revision="master",
+        local_dir=str(cache_dir / final_model_id.replace("/", "_"))
     )
     
     logger.info(f"模型下载完成！路径：{model_dir}")
