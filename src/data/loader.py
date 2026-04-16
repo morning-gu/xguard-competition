@@ -77,41 +77,23 @@ def download_train_dataset(dataset_id: str = None) -> str:
         数据集本地路径
     """
     try:
-        from modelscope.msdatasets import MsDataset
+        from modelscope import snapshot_download
     except ImportError:
         raise ImportError("请安装 modelscope: pip install modelscope")
     
     dataset_id = dataset_id or DEFAULT_TRAIN_DATASET_ID
     
-    # 获取本地缓存目录
-    local_dir = get_dataset_cache_dir()
-    
-    output_file = local_dir / "xguard_train_open_200k.jsonl"
-    
     logger.info(f"正在下载数据集：{dataset_id}")
-    logger.info(f"本地保存路径：{local_dir}")
     
-    # 创建下载目录
-    local_dir.mkdir(parents=True, exist_ok=True)
+    # 使用 snapshot_download 下载数据集（modelscope 会自动缓存）
+    # 这与模型下载逻辑保持一致，避免 SSL 证书验证问题
+    local_dir = snapshot_download(
+        dataset_id,
+        revision="master"
+    )
     
-    # 使用 ModelScope SDK 加载数据集
-    logger.info("[1/3] 正在加载数据集...")
-    ds = MsDataset.load(dataset_id, split='train')
-    logger.info(f"[OK] 数据集加载成功！大小：{len(ds)} 条数据")
-    
-    # 保存数据到本地文件
-    logger.info(f"[2/3] 正在保存数据到：{output_file}")
-    with open(output_file, 'w', encoding='utf-8') as f:
-        for idx, item in enumerate(ds):
-            json_line = json.dumps(item, ensure_ascii=False)
-            f.write(json_line + '\n')
-            if (idx + 1) % 10000 == 0:
-                logger.info(f"  已处理 {idx + 1} 条数据...")
-    
-    logger.info(f"[OK] 数据保存完成！总计保存 {len(ds)} 条数据")
-    logger.info(f"数据集已下载到：{local_dir}")
-    
-    return str(local_dir)
+    logger.info(f"数据集下载完成！路径：{local_dir}")
+    return local_dir
 
 
 def load_train_dataset(
@@ -129,15 +111,21 @@ def load_train_dataset(
         数据列表，每项为一个字典
     """
     if data_path is None:
-        local_dir = get_dataset_cache_dir()
-        data_path = local_dir / "xguard_train_open_200k.jsonl"
+        # 使用 download_train_dataset 返回的路径（snapshot_download 的缓存目录）
+        if auto_download:
+            local_dir = download_train_dataset()
+            # snapshot_download 返回的是数据集根目录，需要找到实际的 JSONL 文件
+            data_path = _find_jsonl_file(local_dir)
+        else:
+            raise FileNotFoundError("未指定数据路径且未启用自动下载")
     
     data_path = Path(data_path)
     
     if not data_path.exists():
         if auto_download:
-            logger.info(f"数据文件不存在：{data_path}，开始自动下载")
-            download_train_dataset()
+            logger.info(f"数据文件不存在：{data_path}，开始重新下载")
+            local_dir = download_train_dataset()
+            data_path = _find_jsonl_file(local_dir)
         else:
             raise FileNotFoundError(f"数据文件不存在：{data_path}")
     
@@ -151,6 +139,31 @@ def load_train_dataset(
     
     logger.info(f"训练数据加载完成，共 {len(data)} 条")
     return data
+
+
+def _find_jsonl_file(directory: str) -> str:
+    """
+    在目录中查找第一个 JSONL 文件
+    
+    Args:
+        directory: 搜索目录
+    
+    Returns:
+        找到的第一个 JSONL 文件的绝对路径
+    """
+    from pathlib import Path
+    dir_path = Path(directory)
+    
+    # 查找所有 JSONL 文件
+    jsonl_files = list(dir_path.rglob("*.jsonl"))
+    
+    if not jsonl_files:
+        raise FileNotFoundError(f"在目录 {directory} 中未找到 JSONL 文件")
+    
+    # 返回第一个找到的 JSONL 文件（通常是最大的训练数据文件）
+    result = max(jsonl_files, key=lambda x: x.stat().st_size)
+    logger.info(f"找到数据文件：{result}")
+    return str(result)
 
 
 def load_test_dataset(test_path: str = None) -> List[Dict]:
