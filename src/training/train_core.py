@@ -175,7 +175,16 @@ def load_model_and_tokenizer(config: dict):
         model_kwargs["quantization_config"] = quantization_config
     else:
         model_kwargs["device_map"] = "auto"
-
+    
+    # Flash Attention 2 支持 (如果配置启用)
+    if model_cfg.get("use_flash_attention_2", False):
+        try:
+            from flash_attn import flash_attn_func  # 检查是否安装
+            model_kwargs["attn_implementation"] = "flash_attention_2"
+            logger.info("使用 Flash Attention 2 加速注意力计算")
+        except ImportError:
+            logger.warning("Flash Attention 2 未安装，将使用默认注意力实现。安装：pip install flash-attn")
+    
     model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
 
     logger.info(f"模型参数量: {sum(p.numel() for p in model.parameters()) / 1e9:.2f}B")
@@ -293,6 +302,8 @@ def build_training_args(config: dict) -> TrainingArguments:
         greater_is_better=False,
         report_to="tensorboard",
         remove_unused_columns=False,
+        # Torch Compile 编译优化 (PyTorch 2.0+)
+        torch_compile=train_cfg.get("torch_compile", False),
     )
 
     return args

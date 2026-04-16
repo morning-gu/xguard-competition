@@ -389,3 +389,32 @@ def load_and_preprocess(
     )
 
     return dataset
+
+
+def create_optimized_dataloader(dataset, batch_size: int, num_workers: int = 8, prefetch_factor: int = 2):
+    """
+    创建优化的数据加载器
+    
+    Args:
+        dataset: 数据集
+        batch_size: 批大小
+        num_workers: 数据加载线程数
+        prefetch_factor: 预取因子，每个 worker 预取的批次数量
+        
+    Returns:
+        DataLoader 实例
+    """
+    from torch.utils.data import DataLoader
+    
+    dataloader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        pin_memory=True,  # 加速 CPU 到 GPU 的数据传输
+        persistent_workers=True if num_workers > 0 else False,  # 保持 worker 进程
+        prefetch_factor=prefetch_factor if num_workers > 0 else None,  # 预取数据
+        shuffle=True,
+    )
+    
+    return dataloader
+
