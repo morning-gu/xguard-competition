@@ -5,7 +5,7 @@ YuFeng-XGuard-Reason-0.6B 模型下载与推理脚本
 
 模型信息:
 - 模型名称: YuFeng-XGuard-Reason-0.6B
-- 模型 ID: Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B
+- 模型 ID: Alibaba-AAIG_YuFeng-XGuard-Reason-0.6B
 - 架构: Qwen3ForCausalLM
 - 用途: 内容安全护栏模型，识别文本中的安全风险
 """
@@ -17,7 +17,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # 本地模型默认路径（相对于项目根目录）
-_DEFAULT_LOCAL_MODEL_PATH = "models/pretrained/Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B"
+_DEFAULT_LOCAL_MODEL_PATH = "models/pretrained/Alibaba-AAIG_YuFeng-XGuard-Reason-0.6B"
 
 
 def _resolve_model_path(model_name: str) -> str:
