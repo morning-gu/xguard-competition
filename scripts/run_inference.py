@@ -46,6 +46,12 @@ if __name__ == "__main__":
         default=None,
         help="最大推理样本数 (调试用)",
     )
+    parser.add_argument(
+        "--device_id",
+        type=int,
+        default=0,
+        help="GPU 设备 ID",
+    )
 
     args = parser.parse_args()
 
@@ -55,4 +61,5 @@ if __name__ == "__main__":
         output_path=args.output,
         enable_reasoning=args.enable_reasoning,
         max_samples=args.max_samples,
+        device_id=args.device_id,
     )

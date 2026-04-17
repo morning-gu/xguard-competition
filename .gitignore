@@ -1,0 +1,62 @@
+# 训练输出 (checkpoints, 模型权重等)
+outputs/
+
+# Python 字节码缓存
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 分发/打包
+dist/
+build/
+*.egg-info/
+*.egg
+
+# 虚拟环境
+venv/
+.venv/
+env/
+.env/
+
+# IDE 和编辑器
+.arts/
+.codeartsdoer/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 环境变量/密钥
+.env
+.env.*
+
+# 训练日志
+wandb/
+runs/
+*.log
+
+# 模型缓存
+.cache/
+modelscope_cache/
+huggingface_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# OS 文件
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# PyTorch 大文件 (如果不在 outputs/ 下)
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.onnx
+
+# 临时文件
+*.tmp
+*.bak

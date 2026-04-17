@@ -30,6 +30,7 @@ def run_inference_on_test_set(
     output_path: str,
     enable_reasoning: bool = False,
     max_samples: int = None,
+    device_id: int = 0,
 ):
     """在测试集上运行推理
 
@@ -39,10 +40,11 @@ def run_inference_on_test_set(
         output_path: 推理结果输出路径
         enable_reasoning: 是否开启归因分析
         max_samples: 最大推理样本数 (用于调试)
+        device_id: GPU 设备 ID
     """
     # 1. 加载模型
     logger.info(f"加载模型: {model_path}")
-    guardrail = Guardrail(model_path)
+    guardrail = Guardrail(model_path, device_id)
 
     # 2. 加载测试数据
     logger.info(f"加载测试数据: {test_data_path}")

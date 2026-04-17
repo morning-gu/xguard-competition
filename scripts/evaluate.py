@@ -44,12 +44,18 @@ def main():
         default="outputs/eval_results.json",
         help="评估结果输出路径",
     )
+    parser.add_argument(
+        "--device_id",
+        type=int,
+        default=0,
+        help="GPU 设备 ID",
+    )
 
     args = parser.parse_args()
 
     # 加载模型
     logger.info(f"加载模型: {args.model_path}")
-    guardrail = Guardrail(args.model_path)
+    guardrail = Guardrail(args.model_path, args.device_id)
 
     # 加载测试数据
     logger.info(f"加载测试数据: {args.test_data}")

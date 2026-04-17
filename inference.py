@@ -7,6 +7,7 @@
 - 动态策略 (通过 policy 参数)
 """
 
+import os
 import time
 import torch
 from modelscope import AutoModelForCausalLM, AutoTokenizer
@@ -17,26 +18,56 @@ class Guardrail:
     """XGuard 安全护栏模型
 
     遵循赛事规定的接口:
-    - __init__(model_path): 加载模型和 tokenizer
+    - __init__(model_path, device_id): 加载模型和 tokenizer
     - infer(messages, policy, enable_reasoning): 执行推理
     """
 
-    def __init__(self, model_path: str):
+    # LoRA checkpoint 中基座模型的远程 ID
+    BASE_MODEL_ID = "Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B"
+
+    def __init__(self, model_path: str, device_id: int = 0):
         """初始化护栏模型
 
         Args:
-            model_path: 模型路径 (本地路径或 HuggingFace/ModelScope model ID)
+            model_path: 模型路径 (项目根目录, 本地路径或 HuggingFace/ModelScope model ID)
+                支持完整模型路径和 LoRA checkpoint 路径
+            device_id: GPU 设备 ID, 所有模型加载到 cuda:{device_id}
         """
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_path,
-            torch_dtype="auto",
-            device_map="auto",
-            trust_remote_code=True,
-        ).eval()
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            model_path,
-            trust_remote_code=True,
-        )
+        if torch.cuda.is_available():
+            self.device = f"cuda:{device_id}"
+        else:
+            self.device = "cpu"
+        adapter_config_path = os.path.join(model_path, "adapter_config.json")
+        if os.path.exists(adapter_config_path):
+            # LoRA checkpoint: 先在 CPU 加载基座模型, 合并 LoRA 后再移到指定 GPU
+            from peft import PeftModel
+
+            self.model = AutoModelForCausalLM.from_pretrained(
+                self.BASE_MODEL_ID,
+                torch_dtype=torch.bfloat16,
+                device_map="cpu",
+                trust_remote_code=True,
+            )
+            self.model = PeftModel.from_pretrained(self.model, model_path)
+            self.model = self.model.merge_and_unload()
+            self.model = self.model.to(self.device)
+            self.model = self.model.eval()
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.BASE_MODEL_ID,
+                trust_remote_code=True,
+            )
+        else:
+            # 完整模型: 直接加载到指定设备
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_path,
+                torch_dtype="auto",
+                device_map=self.device,
+                trust_remote_code=True,
+            ).eval()
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                model_path,
+                trust_remote_code=True,
+            )
 
         # 获取 id2risk 映射 (YuFeng-XGuard 模型内置)
         self.id2risk = getattr(self.tokenizer, "init_kwargs", {}).get("id2risk", {})
@@ -218,8 +249,9 @@ class Guardrail:
 if __name__ == "__main__":
     # 示例: 使用 YuFeng-XGuard-Reason-0.6B 进行推理
     model_path = "Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B"
+    device_id = 0
 
-    safety_guardrail = Guardrail(model_path)
+    safety_guardrail = Guardrail(model_path, device_id)
 
     # 示例 1: Query & Response 对话场景 (stage=qr)
     result = safety_guardrail.infer(
