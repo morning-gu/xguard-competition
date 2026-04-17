@@ -10,7 +10,7 @@ import logging
 from typing import Optional, Dict, Any
 
 import torch
-from transformers import (
+from modelscope import (
     AutoModelForCausalLM,
     AutoTokenizer,
     TrainingArguments,
