@@ -41,7 +41,7 @@
 
 ### 任务要求
 
-*   选手需基于 [**XGuard 开源数据集**](https://huggingface.co/datasets/Alibaba-AAIG/XGuard-Train-Open-200K)（允许扩充新数据），结合 **XGuard 模型**或其他开源模型（**10B 及以下**），训练并提交专属的安全护栏模型。模型需具备与 XGuard 相同的细粒度风险识别能力，具体要求如下：
+*   选手需基于 [**XGuard 开源数据集**](https://modelscope.cn/datasets/Alibaba-AAIG/XGuard-Train-Open-200K)（允许扩充新数据），结合 **XGuard 模型**或其他开源模型（**10B 及以下**），训练并提交专属的安全护栏模型。模型需具备与 XGuard 相同的细粒度风险识别能力，具体要求如下：
     
     *   **应用场景覆盖**
         
@@ -107,7 +107,7 @@
 
 | **数据集** | **获取地址** |  |
 | --- | --- | --- |
-| XGuard-Train-Open-200K | *   [https://huggingface.co/datasets/Alibaba-AAIG/XGuard-Train-Open-200K](https://huggingface.co/datasets/Alibaba-AAIG/XGuard-Train-Open-200K)<br>    <br>*   [https://modelscope.cn/datasets/Alibaba-AAIG/XGuard-Train-Open-200K](https://modelscope.cn/datasets/Alibaba-AAIG/XGuard-Train-Open-200K) |  |
+| XGuard-Train-Open-200K | [https://modelscope.cn/datasets/Alibaba-AAIG/XGuard-Train-Open-200K](https://modelscope.cn/datasets/Alibaba-AAIG/XGuard-Train-Open-200K) |  |
 | XGuard-Test-Open-1k | [请至钉钉文档查看附件《test\_dataset.zip》](https://alidocs.dingtalk.com/i/nodes/MNDoBb60VLYDGNPytPzQr5wnJlemrZQ3?doc_type=wiki_doc&iframeQuery=anchorId%3DX02mn2xbqo9a85q4v6zsft) |  |
 
 ## 提交说明

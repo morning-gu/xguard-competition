@@ -38,12 +38,11 @@ import time
 from typing import List, Dict, Optional
 from pathlib import Path
 
-# 在导入任何其他模块之前设置 HuggingFace 缓存目录
+# 在导入任何其他模块之前设置 ModelScope 缓存目录
 PROJECT_ROOT = Path(__file__).resolve().parent
 cache_dir = PROJECT_ROOT / "models" / "pretrained"
 cache_dir.mkdir(parents=True, exist_ok=True)
-os.environ['HF_HOME'] = str(cache_dir)
-os.environ['HF_HUB_CACHE'] = str(cache_dir / "hub")
+os.environ['MODELSCOPE_CACHE'] = str(cache_dir)
 
 
 class Guardrail:
@@ -56,7 +55,7 @@ class Guardrail:
         Args:
             model_path: 模型路径，可以是:
                 - 本地绝对路径
-                - HuggingFace/ModelScope 模型 ID (如 "Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B")
+                - ModelScope 模型 ID (如 "Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B")
                 - None (使用默认本地路径，自动检查缓存或下载)
         """
         from src.model.loader import load_model_and_tokenizer

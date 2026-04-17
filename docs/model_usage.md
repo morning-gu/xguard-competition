@@ -171,7 +171,6 @@ print(result['risk_score'])
 ## 相关资源
 
 - [ModelScope 模型页面](https://modelscope.cn/models/Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B)
-- [HuggingFace 模型页面](https://huggingface.co/Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B)
 - [技术论文](https://arxiv.org/abs/2601.15588)
 - [在线 Demo](https://modelscope.cn/studios/Alibaba-AAIG/YuFeng-XGuard-Reason-Demo/summary)
 

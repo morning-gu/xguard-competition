@@ -4,7 +4,7 @@
 模型加载模块
 
 提供统一的模型加载接口，支持：
-- 自动从 ModelScope/HuggingFace 下载模型到本地缓存
+- 自动从 ModelScope 下载模型到本地缓存
 - 支持量化加载（4-bit/8-bit）以节省显存
 """
 
@@ -12,12 +12,11 @@ import os
 from pathlib import Path
 from typing import Optional, Tuple
 
-# 在导入 transformers 之前设置 HuggingFace 缓存目录
+# 在导入 transformers 之前设置 ModelScope 缓存目录
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 cache_dir = PROJECT_ROOT / "models" / "pretrained"
 cache_dir.mkdir(parents=True, exist_ok=True)
-os.environ['HF_HOME'] = str(cache_dir)
-os.environ['HF_HUB_CACHE'] = str(cache_dir / "hub")
+os.environ['MODELSCOPE_CACHE'] = str(cache_dir)
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -31,7 +30,7 @@ except ImportError:
     logger.warning("bitsandbytes 未安装，量化加载不可用")
 
 # 缓存目录设置（仅在首次导入时以 debug 级别输出，避免多进程数据加载时刷屏）
-logger.debug(f"HuggingFace 缓存目录设置为: {cache_dir}")
+logger.debug(f"ModelScope 缓存目录设置为: {cache_dir}")
 
 
 # 默认模型配置
@@ -107,7 +106,7 @@ def load_model_and_tokenizer(
     Args:
         model_path: 模型路径，可以是：
             - 本地绝对路径
-            - HuggingFace/ModelScope 模型 ID
+            - ModelScope 模型 ID
             - None (使用默认模型)
         model_version: 模型版本 (仅当 model_path=None 时使用)
         use_4bit: 是否使用 4-bit 量化加载
