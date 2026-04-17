@@ -1,79 +1,72 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-XGuard 校验集评估脚本（命令行入口）
-
-这是评估模块的命令行入口，实际评估逻辑已迁移至 src/evaluation/evaluator.py。
+"""评估启动脚本
 
 用法:
-    # 使用默认预训练模型评估
-    python scripts/evaluate.py
-
-    # 使用微调后的模型评估
-    python scripts/evaluate.py --model_path models/checkpoints/xguard-finetuned
-
-    # 指定校验集路径
-    python scripts/evaluate.py --test_data data/test_dataset/xguard_test_open_1k.jsonl
-
-    # 输出详细结果到文件
-    python scripts/evaluate.py --output_dir results/eval
+    python scripts/evaluate.py --model_path outputs/checkpoints
+    python scripts/evaluate.py --model_path Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B
 """
 
-import argparse
+import os
 import sys
-from pathlib import Path
+import argparse
+import logging
 
-# 确保项目根目录在 sys.path 中
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+# 添加项目根目录到 sys.path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.evaluation.evaluator import evaluate_with_guardrail
+from inference import Guardrail
+from src.data.dataset import load_xguard_test_data
+from src.evaluation.evaluate import evaluate_on_test_set
 
-# 默认校验集路径
-DEFAULT_TEST_DATA = PROJECT_ROOT / "data" / "test_dataset" / "xguard_test_open_1k.jsonl"
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="XGuard 校验集评估脚本")
+    parser = argparse.ArgumentParser(description="XGuard 模型评估")
     parser.add_argument(
         "--model_path",
         type=str,
-        default=None,
-        help="模型路径 (默认使用预训练模型)",
+        default="Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B",
+        help="模型路径",
     )
     parser.add_argument(
         "--test_data",
         type=str,
-        default=None,
-        help=f"校验集文件路径 (默认：{DEFAULT_TEST_DATA})",
+        default="test_dataset/xguard_test_open_1k.jsonl",
+        help="测试数据路径",
     )
     parser.add_argument(
-        "--output_dir",
+        "--output",
         type=str,
-        default="results/eval",
-        help="结果输出目录 (默认：results/eval)",
+        default="outputs/eval_results.json",
+        help="评估结果输出路径",
     )
-    parser.add_argument(
-        "--enable_reasoning",
-        action="store_true",
-        default=False,
-        help="是否开启归因分析 (默认关闭，评估时通常不需要)",
-    )
-    parser.add_argument(
-        "--limit",
-        type=int,
-        default=None,
-        help="限制评测样本数量 (默认评测全部)",
-    )
+
     args = parser.parse_args()
 
-    evaluate_with_guardrail(
-        model_path=args.model_path,
-        test_data=args.test_data or str(DEFAULT_TEST_DATA),
-        output_dir=args.output_dir,
-        enable_reasoning=args.enable_reasoning,
-        limit=args.limit,
+    # 加载模型
+    logger.info(f"加载模型: {args.model_path}")
+    guardrail = Guardrail(args.model_path)
+
+    # 加载测试数据
+    logger.info(f"加载测试数据: {args.test_data}")
+    test_data = load_xguard_test_data(args.test_data)
+
+    # 评估
+    logger.info("开始评估...")
+    results = evaluate_on_test_set(
+        guardrail=guardrail,
+        test_data=test_data,
+        output_path=args.output,
     )
+
+    logger.info(f"\n评估完成!")
+    logger.info(f"F1 (binary): {results['f1_binary']:.4f}")
+    logger.info(f"F1 (macro): {results['f1_macro']:.4f}")
+    logger.info(f"平均耗时: {results['avg_time']:.4f}s")
 
 
 if __name__ == "__main__":

@@ -108,7 +108,7 @@
 | **数据集** | **获取地址** |  |
 | --- | --- | --- |
 | XGuard-Train-Open-200K | *   [https://huggingface.co/datasets/Alibaba-AAIG/XGuard-Train-Open-200K](https://huggingface.co/datasets/Alibaba-AAIG/XGuard-Train-Open-200K)<br>    <br>*   [https://modelscope.cn/datasets/Alibaba-AAIG/XGuard-Train-Open-200K](https://modelscope.cn/datasets/Alibaba-AAIG/XGuard-Train-Open-200K) |  |
-| XGuard-Test-Open-1k | [请至钉钉文档查看附件《test\_dataset.zip》](https://alidocs.dingtalk.com/i/nodes/MNDoBb60VLYDGNPytPzQr5wnJlemrZQ3?doc_type=wiki_doc&iframeQuery=anchorId%3DX02mn2xbqo9a85q4v6zsft) |  |
+| XGuard-Test-Open-1k | [请至钉钉文档查看附件《test\_dataset.zip》](https://alidocs.dingtalk.com/i/nodes/MNDoBb60VLYDGNPytPzQr5wnJlemrZQ3?doc_type=wiki_doc&iframeQuery=anchorId%3DX02mn2xbqo9a85q4v6zsft&utm_medium=dingdoc_doc_plugin_card&utm_scene=team_space&utm_source=dingdoc_doc) |  |
 
 ## 提交说明
 
@@ -167,7 +167,7 @@ class Guardrail:
       result = {
           'risk_score': risk_score,      # 细粒度风险置信度
           'risk_tag': risk_label,        # 细粒度风险类别
-          'explanation': explanation     # 归因分析
+          'explanation': explanation,     # 归因分析
           'time': time                   # 风险标注耗时
       }
       return result
@@ -367,7 +367,7 @@ if __name__ == '__main__':
 
 **赛事激励****：共15万元**
 
-*   **5万  「逆袭吧创二代」TOP10奖金**（\*以下为税前奖金）
+*   **5万  「逆袭吧创二代」TOP10选手奖金**（\*以下为税前奖金）
     
 
 | 名次 | TOP1 | TOP2 | TOP3 | TOP4-5 | TOP6-10 |

@@ -1,103 +1,35 @@
-# XGuard 训练配置文件
+# XGuard 微调训练配置
 
 # 模型配置
-model:
-  # 基座模型 (10B 及以下，符合赛道要求)
-  base_model: "Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B"
-  # 模型架构: Qwen3ForCausalLM
-  trust_remote_code: true
-  # 使用 4-bit 量化加载 (节省显存，适用于小卡训练)
-  use_4bit: true
-  # 使用 8-bit 量化加载
-  use_8bit: false
+base_model_path: "Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B"
+model_max_length: 2048
 
 # 数据配置
-data:
-  # 原始数据路径 (JSONL 格式)
-  raw_data_path: "data/XGuard-Train-Open-200K/xguard_train_open_200k.jsonl"
-  # 预处理数据缓存目录
-  processed_dir: "data/processed"
-  # 训练模式: prompt_safety / response_safety / reasoning / all
-  # - prompt_safety: 仅训练 stage=q 的样本 (仅 prompt)
-  # - response_safety: 仅训练 stage=qr 的样本 (prompt + response)
-  # - reasoning: 带 explanation 的样本
-  # - all: 训练所有样本,根据 stage 自动判断输入格式
-  mode: "all"
-  # 最大序列长度
-  max_length: 2048
-  # 训练集比例
-  train_ratio: 0.9
-  # 随机种子
-  seed: 42
+data_source: "modelscope"  # "modelscope", "huggingface", "local"
+local_data_path: null
+max_train_samples: null
+prompt_template_path: null
+
+# LoRA 配置
+use_lora: true
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_modules: null  # null 表示自动选择 Qwen3 默认模块
 
 # 训练超参数
-training:
-  # 输出目录
-  output_dir: "models/checkpoints/xguard-finetuned"
-  # 训练轮数
-  num_train_epochs: 3
-  # 批大小 (per device) - 已优化提升至 8
-  per_device_train_batch_size: 8
-  # 梯度累积步数 (等效批大小 = batch_size * gradient_accumulation_steps)
-  gradient_accumulation_steps: 4
-  # 学习率
-  learning_rate: 2.0e-5
-  # 学习率调度器类型
-  lr_scheduler_type: "cosine"
-  # 预热步数
-  warmup_steps: 100
-  # 权重衰减
-  weight_decay: 0.01
-  # 最大梯度范数
-  max_grad_norm: 1.0
-  # FP16 训练 (在没有 GPU 或 BF16 不支持时使用)
-  fp16: true
-  # BF16 训练 (优先于 fp16，已启用以获得更好性能和稳定性，需要 GPU 支持)
-  bf16: false
-  # 梯度检查点 (节省显存)
-  gradient_checkpointing: true
-  # 数据加载线程数 - 已优化提升至 8 以加速数据预处理
-  dataloader_num_workers: 8
-  # 训练日志间隔
-  logging_steps: 10
-  # 评估间隔 (步数) - 已优化降低频率以加快训练
-  eval_steps: 1000
-  # 保存间隔 (步数) - 必须是 eval_steps 的整数倍
-  save_steps: 1000
-  # 最多保存检查点数
-  save_total_limit: 3
-  # 早停耐心值
-  early_stopping_patience: 5
-  # 启用 Torch Compile 编译优化 (PyTorch 2.0+)
-  torch_compile: true
-  # 使用 Flash Attention 2 (需要安装 flash-attn，可显著加速注意力计算)
-  use_flash_attention_2: true
-
-# LoRA 配置 (参数高效微调)
-lora:
-  # 是否启用 LoRA
-  enabled: true
-  # LoRA 秩
-  r: 16
-  # LoRA alpha
-  lora_alpha: 32
-  # LoRA dropout
-  lora_dropout: 0.05
-  # 目标模块
-  target_modules:
-    - "q_proj"
-    - "k_proj"
-    - "v_proj"
-    - "o_proj"
-    - "gate_proj"
-    - "up_proj"
-    - "down_proj"
-  # 任务类型
-  task_type: "CAUSAL_LM"
-
-# 评估配置
-evaluation:
-  # 评估批大小 (降低以避免评估时 OOM)
-  per_device_eval_batch_size: 4
-  # 评估数据量 (null 表示使用全部验证集)
-  eval_samples: null
+output_dir: "outputs/checkpoints"
+num_train_epochs: 3
+per_device_train_batch_size: 4
+gradient_accumulation_steps: 4
+learning_rate: 2.0e-5
+weight_decay: 0.01
+warmup_ratio: 0.1
+lr_scheduler_type: "cosine"
+logging_steps: 10
+save_steps: 500
+save_total_limit: 3
+bf16: true
+fp16: false
+gradient_checkpointing: true
+seed: 42

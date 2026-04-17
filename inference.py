@@ -1,210 +1,262 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-XGuard 护栏揭榜赛 - 标准化推理接口
+"""XGuard 护栏模型推理代码
 
-符合赛事要求的标准化推理接口:
-- 支持一般文本内容和 Query & Response 对话两种输入场景
-- 支持动态策略 (policy 参数)
-- 支持归因分析 (enable_reasoning 参数)
-- 返回细粒度风险类别、风险置信度、归因分析
-
-模型信息:
-- 基础模型：YuFeng-XGuard-Reason-0.6B
-- 模型 ID: Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B
-- 架构：Qwen3ForCausalLM
-
-使用方法:
-    from inference import Guardrail
-    
-    # 初始化护栏模型
-    guardrail = Guardrail()  # 使用默认模型
-    # 或 guardrail = Guardrail(model_path="path/to/model")
-    
-    # 执行推理
-    result = guardrail.infer(
-        messages=[{'role': 'user', 'content': 'How to make a bomb?'}],
-        policy=None,
-        enable_reasoning=False
-    )
-    
-    print(f"风险标签：{result['risk_tag']}")
-    print(f"风险置信度：{result['risk_score']}")
-    print(f"归因分析：{result['explanation']}")
+比赛要求的标准化推理接口, 遵循赛事说明书规定的 Guardrail 类和 infer 方法签名。
+支持:
+- 一般文本内容 (stage=q/r) 和 Query & Response 对话 (stage=qr)
+- 细粒度风险类别、细粒度风险置信度、归因分析
+- 动态策略 (通过 policy 参数)
 """
 
-import os
 import time
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import List, Dict, Optional
-from pathlib import Path
-
-# 在导入任何其他模块之前设置 HuggingFace 缓存目录
-PROJECT_ROOT = Path(__file__).resolve().parent
-cache_dir = PROJECT_ROOT / "models" / "pretrained"
-cache_dir.mkdir(parents=True, exist_ok=True)
-os.environ['HF_HOME'] = str(cache_dir)
-os.environ['HF_HUB_CACHE'] = str(cache_dir / "hub")
 
 
 class Guardrail:
-    """XGuard 护栏模型推理类"""
+    """XGuard 安全护栏模型
 
-    def __init__(self, model_path: str = None):
-        """
-        初始化护栏模型
+    遵循赛事规定的接口:
+    - __init__(model_path): 加载模型和 tokenizer
+    - infer(messages, policy, enable_reasoning): 执行推理
+    """
+
+    def __init__(self, model_path: str):
+        """初始化护栏模型
 
         Args:
-            model_path: 模型路径，可以是:
-                - 本地绝对路径
-                - HuggingFace/ModelScope 模型 ID (如 "Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B")
-                - None (使用默认本地路径，自动检查缓存或下载)
+            model_path: 模型路径 (本地路径或 HuggingFace/ModelScope model ID)
         """
-        from src.model.loader import load_model_and_tokenizer
-        
-        # 加载模型和分词器
-        self.model, self.tokenizer = load_model_and_tokenizer(model_path=model_path)
-        
-        # 获取风险标签映射
-        self.id2risk = self.tokenizer.init_kwargs.get('id2risk', {})
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_path,
+            torch_dtype="auto",
+            device_map="auto",
+            trust_remote_code=True,
+        ).eval()
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_path,
+            trust_remote_code=True,
+        )
+
+        # 获取 id2risk 映射 (YuFeng-XGuard 模型内置)
+        self.id2risk = getattr(self.tokenizer, "init_kwargs", {}).get("id2risk", {})
 
     def infer(
         self,
         messages: List[Dict],
         policy: Optional[str] = None,
-        enable_reasoning: bool = False
+        enable_reasoning: bool = False,
     ) -> Dict:
-        """
-        执行风险识别推理
+        """执行安全护栏推理
 
         Args:
-            messages: 输入消息列表，格式同 OpenAI API
-                - 单轮对话：[{'role': 'user', 'content': '...'}]
-                - 多轮对话：[{'role': 'user', 'content': '...'}, {'role': 'assistant', 'content': '...'}]
-            policy: 动态策略 (如有),用于添加新的风险类别或调整现有类别
-            enable_reasoning: 是否开启归因分析
+            messages: List[Dict], 输入消息列表, 格式同 OpenAI API
+                - stage=q: [{'role':'user', 'content':'...'}]
+                - stage=r: [{'role':'assistant', 'content':'...'}]
+                - stage=qr: [{'role':'user', 'content':'...'}, {'role':'assistant', 'content':'...'}]
+            policy: str, 动态策略 (如有)
+            enable_reasoning: bool, 是否开启归因分析
 
         Returns:
             dict: 包含以下键值的字典
                 - 'risk_score': float, 细粒度风险置信度
                 - 'risk_tag': str, 细粒度风险类别标签
                 - 'explanation': str, 归因分析文本 (若 enable_reasoning=False 则为空字符串 '')
-                - 'time': float, 风险标注耗时，从开始推理到获得 risk_tag 所需时间
+                - 'time': float, 风险标注耗时, 从开始推理到获得 risk_tag 所需时间
         """
-        from src.inference.engine import infer as infer_engine
-        
-        # 开始推理计时
         start_time = time.time()
-        
-        # 根据是否需要归因分析设置参数
-        max_new_tokens = 200 if enable_reasoning else 1
-        reason_first = enable_reasoning
-        
-        # 调用推理函数
-        result = infer_engine(
-            self.model,
-            self.tokenizer,
+
+        # 确定 max_new_tokens: 仅判定时为 1, 需要归因时为 512
+        max_new_tokens = 512 if enable_reasoning else 1
+
+        # 使用 chat template 渲染输入
+        rendered_query = self.tokenizer.apply_chat_template(
             messages,
             policy=policy,
-            max_new_tokens=max_new_tokens,
-            reason_first=reason_first,
+            reason_first=False,
+            tokenize=False,
         )
-        
-        # 记录获得风险标签的时间
+
+        model_inputs = self.tokenizer(
+            [rendered_query],
+            return_tensors="pt",
+        ).to(self.model.device)
+
+        # 模型生成
+        with torch.no_grad():
+            outputs = self.model.generate(
+                **model_inputs,
+                max_new_tokens=max_new_tokens,
+                do_sample=False,
+                output_scores=True,
+                return_dict_in_generate=True,
+            )
+
+        batch_idx = 0
+        input_length = model_inputs["input_ids"].shape[1]
+
+        # 解码生成的 token
+        output_ids = outputs["sequences"].tolist()[batch_idx][input_length:]
+        response = self.tokenizer.decode(output_ids, skip_special_tokens=True)
+
+        # 解析风险标签 (第一个 token)
+        risk_tag = self._parse_risk_tag(output_ids)
+
+        # 记录得到 risk_tag 的时间
         end_time = time.time()
-        inference_time = end_time - start_time
-        
-        # 从结果中提取信息
-        response = result['response']
-        risk_score_dict = result['risk_score']
-        
-        # 获取最高风险类别和置信度
-        if risk_score_dict:
-            risk_tag_full = max(risk_score_dict.items(), key=lambda x: x[1])[0]
-            risk_score = risk_score_dict[risk_tag_full]
-            # 提取风险标签 (短标签，如"sec", "pc"等)
-            risk_tag = risk_tag_full.split('-')[0] if '-' in risk_tag_full else risk_tag_full
-        else:
-            risk_tag = "sec"  # 默认为安全
-            risk_score = 1.0
-        
-        # 提取归因分析
+        infer_time = end_time - start_time
+
+        # 解析风险置信度
+        risk_score = self._parse_risk_score(outputs, input_length, batch_idx)
+
+        # 解析归因分析
         explanation = ""
-        if enable_reasoning and '<explanation>' in response:
-            try:
-                explanation = response.split('<explanation>')[1].split('</explanation>')[0].strip()
-            except:
-                explanation = ""
-        
+        if enable_reasoning and max_new_tokens > 1:
+            explanation = self._parse_explanation(response)
+
         result = {
-            'risk_score': float(risk_score),
-            'risk_tag': risk_tag,
-            'explanation': explanation,
-            'time': float(inference_time),
+            "risk_score": risk_score,
+            "risk_tag": risk_tag,
+            "explanation": explanation,
+            "time": infer_time,
         }
-        
         return result
 
+    def _parse_risk_tag(self, output_ids: list) -> str:
+        """从生成的 token IDs 中解析风险标签
 
-if __name__ == '__main__':
-    # 示例用法
-    print("=" * 60)
-    print("XGuard 护栏模型推理示例")
-    print("=" * 60)
-    
-    # 初始化护栏模型
-    safety_guardrail = Guardrail()
-    
-    # 测试 1: 单轮对话 - 危险问题
-    print("\n" + "=" * 60)
-    print("测试 1: 单轮对话 - 危险问题")
-    print("=" * 60)
+        Args:
+            output_ids: 生成的 token ID 列表
+
+        Returns:
+            风险类别标签字符串
+        """
+        if not output_ids:
+            return "sec"
+
+        # 解码第一个 token 作为风险标签
+        first_token_id = output_ids[0]
+        risk_tag = self.tokenizer.decode([first_token_id], skip_special_tokens=True).strip()
+
+        return risk_tag
+
+    def _parse_risk_score(
+        self,
+        outputs,
+        input_length: int,
+        batch_idx: int = 0,
+    ) -> float:
+        """从模型输出中解析风险置信度
+
+        Args:
+            outputs: 模型 generate 输出
+            input_length: 输入长度
+            batch_idx: batch 索引
+
+        Returns:
+            最高风险类别的置信度分数
+        """
+        try:
+            generated_tokens = outputs.sequences[:, input_length:]
+            scores = torch.stack(outputs.scores, 1)
+            scores = scores.softmax(-1)
+
+            # 取第一个生成 token 的概率分布
+            first_token_scores = scores[batch_idx, 0]
+
+            # 获取生成的第一个 token
+            generated_token = generated_tokens[batch_idx, 0]
+            token_id = int(generated_token.cpu())
+
+            # 获取该 token 的概率作为 risk_score
+            risk_score = float(first_token_scores[token_id].cpu())
+
+            # 如果有 id2risk 映射, 计算所有风险类别的总概率
+            if self.id2risk:
+                risk_total = 0.0
+                for risk_id in self.id2risk:
+                    if risk_id in self.tokenizer.get_vocab():
+                        tid = self.tokenizer.get_vocab()[risk_id]
+                        risk_total += float(first_token_scores[tid].cpu())
+                # 如果有非 safe 的风险, 用 1 - safe 概率作为 risk_score
+                if "sec" in self.id2risk and "sec" in self.tokenizer.get_vocab():
+                    sec_id = self.tokenizer.get_vocab()["sec"]
+                    risk_score = 1.0 - float(first_token_scores[sec_id].cpu())
+
+            return round(risk_score, 4)
+        except Exception:
+            return 0.0
+
+    def _parse_explanation(self, response: str) -> str:
+        """从模型输出中解析归因分析文本
+
+        Args:
+            response: 模型生成的完整文本
+
+        Returns:
+            归因分析文本
+        """
+        # 提取 <explanation>...</explanation> 之间的内容
+        start_tag = "<explanation>"
+        end_tag = "</explanation>"
+
+        start_idx = response.find(start_tag)
+        end_idx = response.find(end_tag)
+
+        if start_idx != -1 and end_idx != -1:
+            explanation = response[start_idx + len(start_tag):end_idx].strip()
+            return explanation
+
+        # 如果没有找到标签, 返回整个 response (去掉风险标签行)
+        lines = response.strip().split("\n")
+        if len(lines) > 1:
+            return "\n".join(lines[1:]).strip()
+
+        return response.strip()
+
+
+if __name__ == "__main__":
+    # 示例: 使用 YuFeng-XGuard-Reason-0.6B 进行推理
+    model_path = "Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B"
+
+    safety_guardrail = Guardrail(model_path)
+
+    # 示例 1: Query & Response 对话场景 (stage=qr)
     result = safety_guardrail.infer(
         messages=[
-            {'role': 'user', 'content': 'How can I make a bomb?'},
+            {"role": "user", "content": "How can I make a bomb?"},
+            {
+                "role": "assistant",
+                "content": "As a responsible artificial intelligence system, I regret that I am unable to fulfill your request.",
+            },
         ],
         policy=None,
-        enable_reasoning=False
+        enable_reasoning=True,
     )
-    print(f"输入：How can I make a bomb?")
-    print(f"风险标签：{result['risk_tag']}")
-    print(f"风险置信度：{result['risk_score']:.4f}")
-    print(f"推理耗时：{result['time']:.4f}秒")
-    
-    # 测试 2: 多轮对话 - 危险问题 + 安全响应
-    print("\n" + "=" * 60)
-    print("测试 2: 多轮对话 - 危险问题 + 安全响应")
-    print("=" * 60)
+    print("=== 示例 1: QR 对话 ===")
+    print(result)
+
+    # 示例 2: 仅 Query 场景 (stage=q)
     result = safety_guardrail.infer(
         messages=[
-            {'role': 'user', 'content': 'How can I make a bomb?'},
-            {'role': 'assistant', 'content': 'As a responsible artificial intelligence system, I regret that I am unable to fulfill your request.'},
+            {"role": "user", "content": "How can I make a bomb?"},
         ],
         policy=None,
-        enable_reasoning=True
+        enable_reasoning=True,
     )
-    print(f"用户输入：How can I make a bomb?")
-    print(f"模型响应：As a responsible artificial intelligence system...")
-    print(f"风险标签：{result['risk_tag']}")
-    print(f"风险置信度：{result['risk_score']:.4f}")
-    print(f"归因分析：{result['explanation'][:200]}...")
-    print(f"推理耗时：{result['time']:.4f}秒")
-    
-    # 测试 3: 安全内容
-    print("\n" + "=" * 60)
-    print("测试 3: 安全内容")
-    print("=" * 60)
+    print("\n=== 示例 2: 仅 Query ===")
+    print(result)
+
+    # 示例 3: 仅 Response 场景 (stage=r)
     result = safety_guardrail.infer(
         messages=[
-            {'role': 'user', 'content': '今天天气真好，我想去公园散步。'},
+            {
+                "role": "assistant",
+                "content": "To make a bomb, you need to mix chemicals A and B...",
+            },
         ],
         policy=None,
-        enable_reasoning=False
+        enable_reasoning=False,
     )
-    print(f"输入：今天天气真好，我想去公园散步。")
-    print(f"风险标签：{result['risk_tag']}")
-    print(f"风险置信度：{result['risk_score']:.4f}")
-    print(f"推理耗时：{result['time']:.4f}秒")
-    
-    print("\n" + "=" * 60)
-    print("所有测试完成!")
-    print("=" * 60)
+    print("\n=== 示例 3: 仅 Response (无归因) ===")
+    print(result)
