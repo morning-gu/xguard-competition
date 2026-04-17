@@ -11,8 +11,16 @@
 - 动态策略配置
 """
 
+import os
 import time
 from typing import List, Dict, Optional, Tuple
+from pathlib import Path
+
+# 在导入 transformers 之前设置 HuggingFace 镜像
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+cache_dir = PROJECT_ROOT / "models" / "pretrained"
+cache_dir.mkdir(parents=True, exist_ok=True)
+os.environ['HF_ENDPOINT'] = 'https://modelscope.cn'
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer

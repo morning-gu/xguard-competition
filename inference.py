@@ -38,11 +38,14 @@ import time
 from typing import List, Dict, Optional
 from pathlib import Path
 
-# 在导入任何其他模块之前设置 ModelScope 缓存目录
+# 在导入任何其他模块之前设置 ModelScope 缓存目录和 HuggingFace 镜像
 PROJECT_ROOT = Path(__file__).resolve().parent
 cache_dir = PROJECT_ROOT / "models" / "pretrained"
 cache_dir.mkdir(parents=True, exist_ok=True)
 os.environ['MODELSCOPE_CACHE'] = str(cache_dir)
+
+# 设置 HuggingFace 镜像为 ModelScope，防止 transformers 库回退到 HF
+os.environ['HF_ENDPOINT'] = 'https://modelscope.cn'
 
 
 class Guardrail:
