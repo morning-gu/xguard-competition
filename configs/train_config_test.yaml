@@ -1,0 +1,54 @@
+# XGuard 微调训练配置 - A10服务器测试版
+# 首次训练测试配置，仅训练1个epoch验证流程
+# 针对ecs.gn7i-c8g1.2xlarge (8 vCPU, 30 GiB, A10 * 1)
+
+# 模型配置
+base_model_path: "Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B"
+model_max_length: 2048
+
+# 数据配置
+data_source: "modelscope"  # "modelscope", "huggingface", "local"
+local_data_path: null
+max_train_samples: null
+prompt_template_path: null
+
+# LoRA 配置
+use_lora: true
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_modules: null  # null 表示自动选择 Qwen3 默认模块
+
+# 训练超参数 - 测试配置
+output_dir: "outputs/checkpoints_test"
+num_train_epochs: 1  # 仅训练1个epoch用于测试
+
+# 批次配置 - 使用默认配置确保稳定性
+per_device_train_batch_size: 4
+gradient_accumulation_steps: 4
+
+# 学习率配置
+learning_rate: 2.0e-5
+weight_decay: 0.01
+warmup_ratio: 0.1
+lr_scheduler_type: "cosine"
+
+# 日志和保存配置 - 测试时更频繁
+logging_steps: 5  # 更频繁的日志输出
+save_steps: 200  # 更频繁的保存
+save_total_limit: 2
+
+# 混合精度训练
+bf16: true
+fp16: false
+
+# 内存优化
+gradient_checkpointing: true
+
+# 数据加载优化
+dataloader_num_workers: 4
+dataloader_pin_memory: true
+
+# 其他优化
+seed: 42
+remove_unused_columns: false
