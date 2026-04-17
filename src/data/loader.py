@@ -77,9 +77,9 @@ def download_train_dataset(dataset_id: str = None) -> str:
         数据集本地路径
     """
     try:
-        from huggingface_hub import snapshot_download
+        from modelscope import snapshot_download
     except ImportError:
-        raise ImportError("请安装 huggingface_hub: pip install huggingface_hub")
+        raise ImportError("请安装 modelscope: pip install modelscope")
     
     dataset_id = dataset_id or DEFAULT_TRAIN_DATASET_ID
     
@@ -89,9 +89,9 @@ def download_train_dataset(dataset_id: str = None) -> str:
     cache_dir.mkdir(parents=True, exist_ok=True)
     
     logger.info(f"数据集缓存目录设置为: {cache_dir}")
-    logger.info(f"正在从 HuggingFace 下载数据集：{dataset_id}")
+    logger.info(f"正在从 ModelScope 下载数据集：{dataset_id}")
     
-    # 使用 HuggingFace snapshot_download 下载数据集到指定缓存目录
+    # 使用 ModelScope snapshot_download 下载数据集到指定缓存目录
     local_dir = snapshot_download(
         repo_id=dataset_id,
         repo_type="dataset",

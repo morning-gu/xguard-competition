@@ -5,10 +5,7 @@ torch>=2.0.0
 transformers>=4.37.0
 accelerate>=0.25.0
 
-# HuggingFace Hub (用于从 HuggingFace 下载数据集)
-huggingface_hub>=0.20.0
-
-# ModelScope (用于从魔搭社区下载模型)
+# ModelScope (用于从魔搭社区下载模型和数据集)
 modelscope>=1.9.0
 addict>=2.4.0
 
@@ -28,7 +25,7 @@ protobuf>=3.20.0
 # 训练相关
 peft>=0.10.0          # LoRA / 参数高效微调
 bitsandbytes>=0.43.0  # 4-bit / 8-bit 量化
-datasets>=2.14.0      # HuggingFace 数据集加载
+datasets>=2.14.0      # 数据集加载
 tensorboard>=2.14.0   # 训练日志可视化
 
 # 开发工具

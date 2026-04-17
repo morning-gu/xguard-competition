@@ -36,7 +36,7 @@
 ### 1. 模型加载模块 (`src/model/loader.py`)
 
 提供统一的模型加载接口，支持：
-- 自动从 ModelScope/HuggingFace 下载模型到本地缓存
+- 自动从 ModelScope 下载模型到本地缓存
 - 从本地缓存加载模型
 - 支持量化加载（4-bit/8-bit）以节省显存
 
