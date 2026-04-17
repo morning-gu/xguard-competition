@@ -6,7 +6,7 @@
 """
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from modelscope import AutoModelForCausalLM, AutoTokenizer
 from typing import Optional, Tuple
 
 
