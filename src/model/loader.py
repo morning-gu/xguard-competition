@@ -18,6 +18,9 @@ cache_dir = PROJECT_ROOT / "models" / "pretrained"
 cache_dir.mkdir(parents=True, exist_ok=True)
 os.environ['MODELSCOPE_CACHE'] = str(cache_dir)
 
+# 设置 HuggingFace 镜像为 ModelScope，防止 transformers 库回退到 HF
+os.environ['HF_ENDPOINT'] = 'https://modelscope.cn'
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from loguru import logger
@@ -31,6 +34,7 @@ except ImportError:
 
 # 缓存目录设置（仅在首次导入时以 debug 级别输出，避免多进程数据加载时刷屏）
 logger.debug(f"ModelScope 缓存目录设置为: {cache_dir}")
+logger.debug(f"HF_ENDPOINT 设置为：{os.environ.get('HF_ENDPOINT')}")
 
 
 # 默认模型配置
@@ -80,6 +84,9 @@ def download_model(model_id: str = None, model_version: str = "0.6B", cache_dir:
     logger.info(f"模型将下载到：{cache_dir}")
     
     # 下载模型到指定目录（使用 local_dir 参数）
+    # 注意：snapshot_download 会自动处理 ModelScope 到本地路径的映射
+    # transformers 加载时使用本地路径，不会再次联网
+    logger.info(f"正在从 ModelScope 下载模型：{final_model_id}")
     model_dir = snapshot_download(
         final_model_id,
         revision="master",
@@ -121,12 +128,28 @@ def load_model_and_tokenizer(
     """
     # 解析模型路径
     if model_path is None:
-        # 使用默认模型
-        model_path = MODEL_VERSIONS.get(model_version, DEFAULT_MODEL_ID)
-        logger.info(f"使用默认模型：{model_path}")
+        # 使用默认模型 - 先尝试从 ModelScope 下载到本地，然后使用本地路径
+        model_id = MODEL_VERSIONS.get(model_version, DEFAULT_MODEL_ID)
+        logger.info(f"使用默认模型：{model_id}")
+        # 检查本地缓存是否存在
+        project_root = Path(__file__).resolve().parents[2]
+        local_cache_dir = project_root / "models" / "pretrained"
+        local_model_path = local_cache_dir / model_id.replace("/", "_")
+        
+        if local_model_path.exists():
+            logger.info(f"使用本地缓存模型：{local_model_path}")
+            model_path = str(local_model_path)
+        else:
+            # 需要下载模型
+            logger.info(f"本地缓存不存在，正在从 ModelScope 下载...")
+            model_path = download_model(model_id=model_id, cache_dir=str(local_cache_dir))
     elif "/" in model_path and not os.path.isdir(model_path):
-        # 看起来是模型 ID 格式
-        logger.info(f"使用远程模型 ID：{model_path}")
+        # 看起来是模型 ID 格式 - 先下载到本地再加载
+        logger.info(f"检测到 ModelScope 模型 ID：{model_path}")
+        logger.info("为避免访问 HuggingFace，将先从 ModelScope 下载到本地...")
+        project_root = Path(__file__).resolve().parents[2]
+        local_cache_dir = project_root / "models" / "pretrained"
+        model_path = download_model(model_id=model_path, cache_dir=str(local_cache_dir))
     else:
         # 本地路径
         logger.info(f"使用本地模型：{model_path}")

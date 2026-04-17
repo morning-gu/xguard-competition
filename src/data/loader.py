@@ -15,6 +15,12 @@ import json
 from pathlib import Path
 from typing import Optional, List, Dict, Union
 
+# 在导入 transformers 之前设置 HuggingFace 镜像
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+cache_dir = PROJECT_ROOT / "models" / "pretrained"
+cache_dir.mkdir(parents=True, exist_ok=True)
+os.environ['HF_ENDPOINT'] = 'https://modelscope.cn'
+
 import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader

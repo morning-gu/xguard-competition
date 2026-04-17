@@ -28,6 +28,9 @@ from pathlib import Path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, PROJECT_ROOT)
 
+# 在导入 transformers 之前设置 HuggingFace 镜像
+os.environ['HF_ENDPOINT'] = 'https://modelscope.cn'
+
 import torch
 from transformers import (
     AutoTokenizer,
