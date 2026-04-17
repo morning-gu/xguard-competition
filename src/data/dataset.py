@@ -92,8 +92,10 @@ def load_xguard_train_data(
                 if max_samples and len(data) >= max_samples:
                     break
             return data
-        except ImportError:
-            print("ModelScope 未安装, 尝试从 HuggingFace 加载...")
+        except Exception as e:
+            print(f"从 ModelScope 加载失败: {e}")
+            print("尝试从 HuggingFace 加载...")
+            source = "huggingface"
 
     if source == "huggingface":
         from datasets import load_dataset
