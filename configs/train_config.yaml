@@ -7,7 +7,7 @@ model_max_length: 1024  # 1024 足够用, 且显存友好
 
 # 数据配置
 data_source: "modelscope"
-local_data_path: "data/xguard_train_curated_1k.jsonl"
+local_data_path: null
 max_train_samples: null
 prompt_template_path: null
 
@@ -20,7 +20,7 @@ lora_target_modules: null
 
 # 训练超参数
 output_dir: "outputs/checkpoints"
-num_train_epochs: 5  # 1K数据, 多跑几轮
+num_train_epochs: 1
 
 # 批次配置 - 充分利用显存
 per_device_train_batch_size: 8  # 增大batch, 提升显存利用率

@@ -280,8 +280,21 @@ def train(config: Optional[TrainConfig] = None, **kwargs) -> str:
         data_collator=data_collator,
     )
 
+    # 检查是否有可恢复的checkpoint
+    checkpoint = None
+    if os.path.exists(config.output_dir):
+        checkpoints = [
+            d for d in os.listdir(config.output_dir)
+            if d.startswith("checkpoint-") and os.path.isdir(os.path.join(config.output_dir, d))
+        ]
+        if checkpoints:
+            # 选择最新的checkpoint
+            latest = max(checkpoints, key=lambda x: int(x.split("-")[1]))
+            checkpoint = os.path.join(config.output_dir, latest)
+            logger.info(f"检测到checkpoint,将从断点恢复训练: {checkpoint}")
+
     logger.info("开始训练...")
-    trainer.train()
+    trainer.train(resume_from_checkpoint=checkpoint)
 
     # 9. 保存模型
     logger.info(f"保存模型到: {config.output_dir}")
