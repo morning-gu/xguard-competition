@@ -10,6 +10,15 @@ import logging
 from typing import Optional, Dict, Any
 
 import torch
+
+# 修复: PyTorch 2.6+ 默认 weights_only=True 不允许 numpy 全局对象,
+# 导致从 checkpoint 恢复训练时加载 rng_state.pth 失败
+try:
+    import numpy
+    torch.serialization.add_safe_globals([numpy._core.multiarray._reconstruct])
+except (AttributeError, ImportError):
+    pass
+
 from modelscope import (
     AutoModelForCausalLM,
     AutoTokenizer,
