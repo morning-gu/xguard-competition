@@ -1,0 +1,77 @@
+# XGuard 微调训练配置 - 8B模型优化版
+# 适用于 Alibaba-AAIG/YuFeng-XGuard-Reason-8B
+# 针对 A10 24GB / A100 40GB 单卡场景深度优化
+#
+# 关键优化策略:
+#   1. 极小batch_size (1) + 大gradient_accumulation (16) 保持等效batch=16
+#   2. 短序列长度 (512) 减少激活值显存占用
+#   3. gradient_checkpointing + bf16 双重省显存
+#   4. LoRA低秩 (r=8) 减少可训练参数
+#   5. 仅对注意力层做LoRA, 跳过MLP层
+#   6. 清理GPU缓存 + expandable_segments减少碎片
+#
+# 使用方式:
+#   python scripts/train.py --config configs/train_config_8b.yaml
+#
+# 环境变量建议 (训练前执行):
+#   export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+#   export CUDA_VISIBLE_DEVICES=0
+
+# 模型配置
+base_model_path: "Alibaba-AAIG/YuFeng-XGuard-Reason-8B"
+model_max_length: 512  # 8B模型显存紧张, 缩短序列长度; XGuard任务输出较短, 512通常足够
+
+# 数据配置
+data_source: "modelscope"
+local_data_path: null
+max_train_samples: null
+prompt_template_path: null
+
+# LoRA 配置 - 8B模型专用优化
+use_lora: true
+lora_r: 8  # 降低LoRA秩: 8B参数量大, r=8已足够; 同时减少可训练参数节省显存
+lora_alpha: 16  # 保持 alpha/r=2 的常用比例
+lora_dropout: 0.05
+# 仅对注意力层做LoRA, 跳过MLP层 (gate_proj/up_proj/down_proj)
+# 这将可训练参数从7组减少到4组, 显著降低显存占用
+lora_target_modules:
+  - "q_proj"
+  - "k_proj"
+  - "v_proj"
+  - "o_proj"
+
+# 训练超参数
+output_dir: "outputs/checkpoints_8b"
+num_train_epochs: 1  # 8B模型容量大, 1个epoch通常足够收敛
+
+# 批次配置 - 极致显存优化
+# batch=1 是单卡24GB上8B模型唯一可行的选择
+# gradient_accumulation=16 保证等效batch_size=16, 与0.6B配置一致
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 16
+
+# 学习率配置
+learning_rate: 1.0e-5  # 8B模型用更小的学习率, 避免LoRA更新过大导致不稳定
+weight_decay: 0.01
+warmup_ratio: 0.05  # 缩短warmup, 8B模型预训练充分, 不需要长warmup
+lr_scheduler_type: "cosine"
+
+# 日志和保存配置
+logging_steps: 5  # batch=1时步数多, 每5步记录一次
+save_steps: 200
+save_total_limit: 2  # 8B模型checkpoint较大, 最多保留2个
+
+# 混合精度训练
+bf16: true
+fp16: false
+
+# 内存优化 - 全部开启
+gradient_checkpointing: true
+
+# 数据加载优化
+dataloader_num_workers: 2
+dataloader_pin_memory: true
+
+# 其他优化
+seed: 42
+remove_unused_columns: false

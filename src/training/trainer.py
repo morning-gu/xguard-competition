@@ -266,9 +266,11 @@ def train(config: Optional[TrainConfig] = None, **kwargs) -> str:
     )
 
     # 7. 数据 collator
+    # padding="max_length" + max_length: 显式截断到max_length并padding,
+    # 避免 "max_length is ignored when padding=True" 的警告
     data_collator = DataCollatorForSeq2Seq(
         tokenizer=tokenizer,
-        padding=True,
+        padding="max_length",
         max_length=config.model_max_length,
     )
 
