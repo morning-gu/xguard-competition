@@ -15,7 +15,10 @@ import torch
 # 导致从 checkpoint 恢复训练时加载 rng_state.pth 失败
 try:
     import numpy
-    torch.serialization.add_safe_globals([numpy._core.multiarray._reconstruct])
+    torch.serialization.add_safe_globals([
+        numpy.ndarray,
+        numpy._core.multiarray._reconstruct,
+    ])
 except (AttributeError, ImportError):
     pass
 
