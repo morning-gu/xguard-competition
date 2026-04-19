@@ -1,13 +1,13 @@
-# XGuard 微调训练配置 - A10服务器优化版
-# 针对ecs.gn7i-c8g1.2xlarge (8 vCPU, 30 GiB, A10 * 1)优化
+# XGuard 微调训练配置 - 通用优化版
+# 适用于大多数 GPU (A10 24GB, V100 16GB, A100 40GB 等)
 
 # 模型配置
 base_model_path: "Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B"
-model_max_length: 2048
+model_max_length: 1024  # 1024 足够用, 且显存友好
 
 # 数据配置
-data_source: "modelscope"  # "modelscope", "huggingface", "local"
-local_data_path: null
+data_source: "modelscope"
+local_data_path: "data/xguard_train_curated_1k.jsonl"
 max_train_samples: null
 prompt_template_path: null
 
@@ -16,15 +16,15 @@ use_lora: true
 lora_r: 16
 lora_alpha: 32
 lora_dropout: 0.05
-lora_target_modules: null  # null 表示自动选择 Qwen3 默认模块
+lora_target_modules: null
 
 # 训练超参数
 output_dir: "outputs/checkpoints"
-num_train_epochs: 3
+num_train_epochs: 5  # 1K数据, 多跑几轮
 
-# 批次配置优化 - 充分利用A10的24GB显存
-per_device_train_batch_size: 8  # 从4增加到8，提升训练效率
-gradient_accumulation_steps: 2  # 从4减少到2，保持等效批次16
+# 批次配置 - 充分利用显存
+per_device_train_batch_size: 8  # 增大batch, 提升显存利用率
+gradient_accumulation_steps: 2  # 累积梯度, 等效batch=16
 
 # 学习率配置
 learning_rate: 2.0e-5
@@ -34,19 +34,19 @@ lr_scheduler_type: "cosine"
 
 # 日志和保存配置
 logging_steps: 10
-save_steps: 500
+save_steps: 100
 save_total_limit: 3
 
 # 混合精度训练
-bf16: true  # A10原生支持BF16
+bf16: true
 fp16: false
 
 # 内存优化
-gradient_checkpointing: true  # 节省显存
+gradient_checkpointing: true
 
-# 数据加载优化 - 针对8 vCPU
-dataloader_num_workers: 4  # 增加数据加载并行度
-dataloader_pin_memory: true  # 加速GPU数据传输
+# 数据加载优化
+dataloader_num_workers: 2
+dataloader_pin_memory: true
 
 # 其他优化
 seed: 42

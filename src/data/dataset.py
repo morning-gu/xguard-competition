@@ -76,6 +76,11 @@ def load_xguard_train_data(
     Returns:
         原始数据列表
     """
+    # 优先使用本地路径 (即使 source 不是 "local", 只要指定了 local_path 就从本地加载)
+    if local_path and os.path.exists(local_path):
+        print(f"从本地加载数据: {local_path}")
+        return _load_from_jsonl(local_path, max_samples)
+
     if source == "local" and local_path:
         return _load_from_jsonl(local_path, max_samples)
 
@@ -95,14 +100,16 @@ def load_xguard_train_data(
         except Exception as e:
             print(f"从 ModelScope 加载失败: {e}")
             print("尝试从 HuggingFace 加载...")
-            source = "huggingface"
+            # 不要修改 source 变量, 直接执行 HuggingFace 加载
 
-    if source == "huggingface":
+    # HuggingFace 加载 (作为 fallback 或首选)
+    try:
         from datasets import load_dataset
         raw_dataset = load_dataset(
             "Alibaba-AAIG/XGuard-Train-Open-200K",
             "xguard_train_open_200k",
             split="train",
+            trust_remote_code=True,  # 信任远程代码, 解决 LargeList 等类型问题
         )
         data = []
         for item in raw_dataset:
@@ -110,8 +117,9 @@ def load_xguard_train_data(
             if max_samples and len(data) >= max_samples:
                 break
         return data
-
-    raise ValueError(f"不支持的数据来源: {source}")
+    except Exception as e:
+        print(f"从 HuggingFace 加载失败: {e}")
+        raise ValueError(f"无法从 ModelScope 或 HuggingFace 加载数据集。请使用本地数据: --local_data_path <path>")
 
 
 def load_xguard_test_data(

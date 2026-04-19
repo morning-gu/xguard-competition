@@ -1,0 +1,44 @@
+{
+  "total": 1000,
+  "label_distribution": {
+    "sec": 159,
+    "se": 47,
+    "pp": 40,
+    "pc": 39,
+    "pi": 39,
+    "ph": 35,
+    "dc": 33,
+    "dw": 33,
+    "ec": 32,
+    "mh": 31,
+    "ac": 30,
+    "law": 30,
+    "ha": 29,
+    "ext": 29,
+    "med": 27,
+    "def": 27,
+    "fin": 26,
+    "cm": 26,
+    "sd": 26,
+    "acc": 26,
+    "sci": 25,
+    "ma": 25,
+    "mc": 25,
+    "cy": 25,
+    "ter": 24,
+    "ti": 24,
+    "cs": 23,
+    "md": 23,
+    "ps": 22,
+    "a": 20
+  },
+  "stage_distribution": {
+    "qr": 568,
+    "r": 330,
+    "q": 102
+  },
+  "sample_type_distribution": {
+    "general": 843,
+    "dynamic_policy": 157
+  }
+}

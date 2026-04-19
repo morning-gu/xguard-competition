@@ -19,6 +19,34 @@ from modelscope import (
 )
 from peft import LoraConfig, get_peft_model, TaskType
 
+# 修复: 禁用 PEFT 对 awq 的自动检测
+# awq 包与 transformers>=4.51 不兼容 (shard_checkpoint 已移除),
+# 但 PEFT 的 LoRA dispatcher 仍会尝试 from awq.modules.linear import WQLinear_GEMM,
+# 导致 ImportError. 直接将 dispatch_awq 替换为空操作来跳过 awq 检测.
+try:
+    import peft.tuners.lora.model as _peft_lora_model
+    _peft_lora_model.dispatch_awq = lambda target, adapter_name, **kwargs: None
+except Exception:
+    pass
+
+# 修复: transformers<4.52 不支持 Qwen3 架构
+# Qwen3 在 transformers 4.52.0 才加入, 但赛事要求 transformers==4.51.0.
+# 解决方案: 将 Qwen3 注册为 Qwen2 的别名 (Qwen3 架构与 Qwen2 高度相似).
+# 这需要在 AutoConfig/AutoModel 映射中添加 qwen3 -> Qwen2 的映射.
+try:
+    from transformers.models.auto.configuration_auto import CONFIG_MAPPING
+    from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING
+    from transformers.models.qwen2 import Qwen2Config, Qwen2ForCausalLM
+
+    if "qwen3" not in CONFIG_MAPPING:
+        # 使用 register 方法注册 Qwen3Config 为 Qwen2Config 的别名
+        CONFIG_MAPPING.register("qwen3", Qwen2Config, exist_ok=True)
+        # 注册 Qwen3ForCausalLM 为 Qwen2ForCausalLM 的别名
+        MODEL_FOR_CAUSAL_LM_MAPPING.register(Qwen2Config, Qwen2ForCausalLM, exist_ok=True)
+        logging.getLogger(__name__).info("已注册 Qwen3 为 Qwen2 别名 (transformers<4.52 兼容)")
+except Exception as e:
+    logging.getLogger(__name__).debug(f"Qwen3 注册跳过: {e}")
+
 from src.data.dataset import XGuardDataset
 from src.data.preprocess import preprocess_for_training, load_prompt_template
 from src.data.dataset import load_xguard_train_data

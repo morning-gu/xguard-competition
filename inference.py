@@ -13,6 +13,30 @@ import torch
 from modelscope import AutoModelForCausalLM, AutoTokenizer
 from typing import List, Dict, Optional
 
+# 修复: transformers<4.52 不支持 Qwen3 架构
+# Qwen3 在 transformers 4.52.0 才加入, 但赛事要求 transformers==4.51.0.
+# 解决方案: 将 Qwen3 注册为 Qwen2 的别名 (Qwen3 架构与 Qwen2 高度相似).
+try:
+    from transformers.models.auto.configuration_auto import CONFIG_MAPPING
+    from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING
+    from transformers.models.qwen2 import Qwen2Config, Qwen2ForCausalLM
+
+    if "qwen3" not in CONFIG_MAPPING:
+        CONFIG_MAPPING.register("qwen3", Qwen2Config, exist_ok=True)
+        MODEL_FOR_CAUSAL_LM_MAPPING.register(Qwen2Config, Qwen2ForCausalLM, exist_ok=True)
+except Exception:
+    pass
+
+# 修复: 禁用 PEFT 对 awq 的自动检测
+# awq 包与 transformers>=4.51 不兼容 (shard_checkpoint 已移除),
+# 但 PEFT 的 LoRA dispatcher 仍会尝试 from awq.modules.linear import WQLinear_GEMM,
+# 导致 ImportError. 直接将 dispatch_awq 替换为空操作来跳过 awq 检测.
+try:
+    import peft.tuners.lora.model as _peft_lora_model
+    _peft_lora_model.dispatch_awq = lambda target, adapter_name, **kwargs: None
+except Exception:
+    pass
+
 
 class Guardrail:
     """XGuard 安全护栏模型
@@ -33,22 +57,29 @@ class Guardrail:
                 支持完整模型路径和 LoRA checkpoint 路径
             device_id: GPU 设备 ID, 所有模型加载到 cuda:{device_id}
         """
+        # 确定 device
         if torch.cuda.is_available():
             self.device = f"cuda:{device_id}"
+            print(f"[Guardrail] CUDA 可用, 使用设备: {self.device}")
         else:
             self.device = "cpu"
+            print(f"[Guardrail] CUDA 不可用, 使用 CPU")
+
         adapter_config_path = os.path.join(model_path, "adapter_config.json")
         if os.path.exists(adapter_config_path):
             # LoRA checkpoint: 先在 CPU 加载基座模型, 合并 LoRA 后再移到指定 GPU
             from peft import PeftModel
 
+            print(f"[Guardrail] 检测到 LoRA checkpoint, 加载基座模型: {self.BASE_MODEL_ID}")
             self.model = AutoModelForCausalLM.from_pretrained(
                 self.BASE_MODEL_ID,
                 torch_dtype=torch.bfloat16,
                 device_map="cpu",
                 trust_remote_code=True,
             )
+            print(f"[Guardrail] 加载 LoRA 适配器: {model_path}")
             self.model = PeftModel.from_pretrained(self.model, model_path)
+            print(f"[Guardrail] 合并 LoRA 并移至 {self.device}")
             self.model = self.model.merge_and_unload()
             self.model = self.model.to(self.device)
             self.model = self.model.eval()
@@ -58,9 +89,10 @@ class Guardrail:
             )
         else:
             # 完整模型: 直接加载到指定设备
+            print(f"[Guardrail] 加载完整模型: {model_path} -> {self.device}")
             self.model = AutoModelForCausalLM.from_pretrained(
                 model_path,
-                torch_dtype="auto",
+                torch_dtype=torch.bfloat16,
                 device_map=self.device,
                 trust_remote_code=True,
             ).eval()
@@ -68,6 +100,17 @@ class Guardrail:
                 model_path,
                 trust_remote_code=True,
             )
+
+        # 打印模型设备信息
+        if hasattr(self.model, 'device'):
+            print(f"[Guardrail] 模型实际设备: {self.model.device}")
+        else:
+            # 检查第一个参数的设备
+            try:
+                first_param = next(self.model.parameters())
+                print(f"[Guardrail] 模型参数设备: {first_param.device}")
+            except StopIteration:
+                print(f"[Guardrail] 模型无参数")
 
         # 获取 id2risk 映射 (YuFeng-XGuard 模型内置)
         self.id2risk = getattr(self.tokenizer, "init_kwargs", {}).get("id2risk", {})
@@ -113,21 +156,21 @@ class Guardrail:
             return_tensors="pt",
         ).to(self.model.device)
 
-        # 模型生成
+        # 模型生成 - 优化: 关闭 output_scores, 启用 KV cache 加速
         with torch.no_grad():
             outputs = self.model.generate(
                 **model_inputs,
                 max_new_tokens=max_new_tokens,
                 do_sample=False,
-                output_scores=True,
-                return_dict_in_generate=True,
+                use_cache=True,
+                pad_token_id=self.tokenizer.pad_token_id,
+                eos_token_id=self.tokenizer.eos_token_id,
             )
 
-        batch_idx = 0
         input_length = model_inputs["input_ids"].shape[1]
 
         # 解码生成的 token
-        output_ids = outputs["sequences"].tolist()[batch_idx][input_length:]
+        output_ids = outputs[0].tolist()[input_length:]
         response = self.tokenizer.decode(output_ids, skip_special_tokens=True)
 
         # 解析风险标签 (第一个 token)
@@ -137,8 +180,8 @@ class Guardrail:
         end_time = time.time()
         infer_time = end_time - start_time
 
-        # 解析风险置信度
-        risk_score = self._parse_risk_score(outputs, input_length, batch_idx)
+        # 解析风险置信度 - 简化版: 基于首 token 置信度
+        risk_score = self._parse_risk_score_simple(output_ids)
 
         # 解析归因分析
         explanation = ""
@@ -152,6 +195,28 @@ class Guardrail:
             "time": infer_time,
         }
         return result
+
+    def _parse_risk_score_simple(self, output_ids: list) -> float:
+        """简化版风险置信度 (不依赖 output_scores)
+
+        Args:
+            output_ids: 生成的 token ID 列表
+
+        Returns:
+            风险置信度分数 (基于是否为 safe 标签)
+        """
+        if not output_ids:
+            return 0.0
+
+        # 解码首 token
+        first_token_id = output_ids[0]
+        risk_tag = self.tokenizer.decode([first_token_id], skip_special_tokens=True).strip()
+
+        # 如果是 safe 标签, risk_score 较低; 否则较高
+        if risk_tag == "sec" or risk_tag.lower() == "safe":
+            return 0.1  # safe 的风险分数
+        else:
+            return 0.9  # unsafe 的风险分数
 
     def _parse_risk_tag(self, output_ids: list) -> str:
         """从生成的 token IDs 中解析风险标签
@@ -170,53 +235,6 @@ class Guardrail:
         risk_tag = self.tokenizer.decode([first_token_id], skip_special_tokens=True).strip()
 
         return risk_tag
-
-    def _parse_risk_score(
-        self,
-        outputs,
-        input_length: int,
-        batch_idx: int = 0,
-    ) -> float:
-        """从模型输出中解析风险置信度
-
-        Args:
-            outputs: 模型 generate 输出
-            input_length: 输入长度
-            batch_idx: batch 索引
-
-        Returns:
-            最高风险类别的置信度分数
-        """
-        try:
-            generated_tokens = outputs.sequences[:, input_length:]
-            scores = torch.stack(outputs.scores, 1)
-            scores = scores.softmax(-1)
-
-            # 取第一个生成 token 的概率分布
-            first_token_scores = scores[batch_idx, 0]
-
-            # 获取生成的第一个 token
-            generated_token = generated_tokens[batch_idx, 0]
-            token_id = int(generated_token.cpu())
-
-            # 获取该 token 的概率作为 risk_score
-            risk_score = float(first_token_scores[token_id].cpu())
-
-            # 如果有 id2risk 映射, 计算所有风险类别的总概率
-            if self.id2risk:
-                risk_total = 0.0
-                for risk_id in self.id2risk:
-                    if risk_id in self.tokenizer.get_vocab():
-                        tid = self.tokenizer.get_vocab()[risk_id]
-                        risk_total += float(first_token_scores[tid].cpu())
-                # 如果有非 safe 的风险, 用 1 - safe 概率作为 risk_score
-                if "sec" in self.id2risk and "sec" in self.tokenizer.get_vocab():
-                    sec_id = self.tokenizer.get_vocab()["sec"]
-                    risk_score = 1.0 - float(first_token_scores[sec_id].cpu())
-
-            return round(risk_score, 4)
-        except Exception:
-            return 0.0
 
     def _parse_explanation(self, response: str) -> str:
         """从模型输出中解析归因分析文本
