@@ -6,6 +6,7 @@
 import json
 import time
 import logging
+from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 
 import numpy as np
@@ -93,6 +94,8 @@ def evaluate_on_test_set(
 
     # 保存详细结果
     if output_path:
+        output_file = Path(output_path)
+        output_file.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump({
                 "summary": results,
