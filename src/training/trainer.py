@@ -11,15 +11,41 @@ from typing import Optional, Dict, Any
 
 import torch
 
-# 修复: PyTorch 2.6+ 默认 weights_only=True 不允许 numpy 全局对象,
-# 导致从 checkpoint 恢复训练时加载 rng_state.pth 失败
+# 修复: PyTorch 2.6+ 默认 weights_only=True, 但 HuggingFace Trainer
+# 保存的 rng_state.pth 包含 numpy/_codecs 等非默认安全全局对象,
+# 导致从 checkpoint 恢复训练时 _pickle.UnpicklingError.
+# 解决方案: monkey-patch Trainer._load_rng_state 使用 weights_only=False
+# (rng_state.pth 由 Trainer 自身保存, 来源可信)
 try:
-    import numpy
-    torch.serialization.add_safe_globals([
-        numpy.ndarray,
-        numpy._core.multiarray._reconstruct,
-    ])
-except (AttributeError, ImportError):
+    from transformers.trainer import Trainer as _Trainer
+    import os as _os
+
+    _orig_load_rng_state = _Trainer._load_rng_state
+
+    def _patched_load_rng_state(self, checkpoint):
+        rng_file = _os.path.join(checkpoint, "rng_state.pth")
+        if not _os.path.isfile(rng_file):
+            return
+        try:
+            checkpoint_rng_state = torch.load(rng_file, weights_only=False)
+        except Exception:
+            return
+        if "random" in checkpoint_rng_state:
+            import random
+            random.setstate(checkpoint_rng_state["random"])
+        if "numpy" in checkpoint_rng_state:
+            import numpy as np
+            np.random.set_state(checkpoint_rng_state["numpy"])
+        if "torch" in checkpoint_rng_state:
+            torch.set_rng_state(checkpoint_rng_state["torch"])
+        if "cuda" in checkpoint_rng_state:
+            try:
+                torch.cuda.set_rng_state_all(checkpoint_rng_state["cuda"])
+            except Exception:
+                pass
+
+    _Trainer._load_rng_state = _patched_load_rng_state
+except Exception:
     pass
 
 from modelscope import (
