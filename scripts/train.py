@@ -72,7 +72,12 @@ def main():
     parser.add_argument(
         "--eval_after_train",
         action="store_true",
-        help="训练完成后自动评估",
+        help="训练完成后自动评估 (覆盖配置文件)",
+    )
+    parser.add_argument(
+        "--no_eval_after_train",
+        action="store_true",
+        help="训练完成后不评估 (覆盖配置文件)",
     )
     parser.add_argument(
         "--test_data_path",
@@ -114,9 +119,12 @@ def main():
     output_dir = train(config)
     print(f"\n训练完成! 模型保存到: {output_dir}")
 
-    # 训练后评估
+    # 训练后评估: 命令行 --eval_after_train / --no_eval_after_train 优先,
+    # 否则使用 TrainConfig 中的 eval_after_train (可从 YAML 配置)
     if args.eval_after_train:
         evaluate_model(output_dir, args.test_data_path)
+    elif config.eval_after_train and not args.no_eval_after_train:
+        evaluate_model(output_dir, config.test_data_path)
 
 
 if __name__ == "__main__":

@@ -75,3 +75,7 @@ dataloader_pin_memory: true
 # 其他优化
 seed: 42
 remove_unused_columns: false
+
+# 训练后自动评测
+eval_after_train: true
+test_data_path: "test_dataset/xguard_test_open_1k.jsonl"

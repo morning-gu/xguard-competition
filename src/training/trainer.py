@@ -100,6 +100,10 @@ class TrainConfig:
     gradient_checkpointing: bool = True
     seed: int = 42
 
+    # 评测配置
+    eval_after_train: bool = True
+    test_data_path: str = "test_dataset/xguard_test_open_1k.jsonl"
+
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
             if hasattr(self, k):
