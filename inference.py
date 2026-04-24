@@ -156,12 +156,14 @@ class Guardrail:
             return_tensors="pt",
         ).to(self.model.device)
 
-        # 模型生成 - 优化: 关闭 output_scores, 启用 KV cache 加速
+        # 模型生成 - 启用 output_scores 以获取概率分布, 启用 KV cache 加速
         with torch.no_grad():
             outputs = self.model.generate(
                 **model_inputs,
                 max_new_tokens=max_new_tokens,
                 do_sample=False,
+                output_scores=True,
+                return_dict_in_generate=True,
                 use_cache=True,
                 pad_token_id=self.tokenizer.pad_token_id,
                 eos_token_id=self.tokenizer.eos_token_id,
@@ -170,7 +172,7 @@ class Guardrail:
         input_length = model_inputs["input_ids"].shape[1]
 
         # 解码生成的 token
-        output_ids = outputs[0].tolist()[input_length:]
+        output_ids = outputs["sequences"][0].tolist()[input_length:]
         response = self.tokenizer.decode(output_ids, skip_special_tokens=True)
 
         # 解析风险标签 (第一个 token)
@@ -180,8 +182,8 @@ class Guardrail:
         end_time = time.time()
         infer_time = end_time - start_time
 
-        # 解析风险置信度 - 简化版: 基于首 token 置信度
-        risk_score = self._parse_risk_score_simple(output_ids)
+        # 解析风险置信度 - 基于 softmax 概率分布 + id2risk 映射
+        risk_score = self._parse_risk_score(outputs, input_length)
 
         # 解析归因分析
         explanation = ""
@@ -196,27 +198,54 @@ class Guardrail:
         }
         return result
 
-    def _parse_risk_score_simple(self, output_ids: list) -> float:
-        """简化版风险置信度 (不依赖 output_scores)
+    def _parse_risk_score(self, outputs, input_length: int) -> float:
+        """基于 softmax 概率分布的风险置信度 (YuFeng-XGuard 官方计算方式)
+
+        通过 output_scores 获取首 token 的概率分布, 结合 id2risk 映射
+        计算各风险维度的概率, 最终返回 1 - P(safe) 作为风险分数。
 
         Args:
-            output_ids: 生成的 token ID 列表
+            outputs: model.generate() 的返回值 (return_dict_in_generate=True)
+            input_length: 输入序列长度
 
         Returns:
-            风险置信度分数 (基于是否为 safe 标签)
+            风险置信度分数 (1 - P(safe))
         """
-        if not output_ids:
+        if not outputs.scores:
             return 0.0
 
-        # 解码首 token
-        first_token_id = output_ids[0]
-        risk_tag = self.tokenizer.decode([first_token_id], skip_special_tokens=True).strip()
+        # softmax 得到首 token 的概率分布
+        scores = torch.stack(outputs.scores, 1)
+        scores = scores.softmax(-1)
 
-        # 如果是 safe 标签, risk_score 较低; 否则较高
-        if risk_tag == "sec" or risk_tag.lower() == "safe":
-            return 0.1  # safe 的风险分数
-        else:
-            return 0.9  # unsafe 的风险分数
+        # 取 top-10 概率
+        scores_topk_value, scores_topk_index = scores.topk(k=10, dim=-1)
+
+        # 构建首 token 的 token_text -> prob 映射
+        # reason_first=False 时, score_idx=0 (首 token 即风险判定)
+        score_idx = 0
+        token_score = {}
+        for value, index in zip(scores_topk_value[0, score_idx], scores_topk_index[0, score_idx]):
+            text = self.tokenizer.decode(index.cpu().numpy())
+            prob = float(value.cpu().numpy())
+            # 保留概率 > 1e-4 的项 (以及 top-1)
+            if prob > 1e-4 or not token_score:
+                token_score[text] = prob
+
+        # 通过 id2risk 映射获取各风险维度的概率
+        risk_score_dict = {}
+        for token_text, prob in token_score.items():
+            if token_text in self.id2risk:
+                risk_score_dict[self.id2risk[token_text]] = prob
+
+        # 计算 risk_score: 1 - P(safe)
+        safe_prob = 0.0
+        for risk_name, prob in risk_score_dict.items():
+            if risk_name == "Safe-Safe":
+                safe_prob = prob
+                break
+
+        return round(1.0 - safe_prob, 4)
 
     def _parse_risk_tag(self, output_ids: list) -> str:
         """从生成的 token IDs 中解析风险标签

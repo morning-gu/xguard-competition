@@ -6,7 +6,7 @@ transformers==4.51.0
 peft==0.18.1
 
 # 深度学习框架
-torch==2.4.0
+torch>=2.1.0
 
 # Transformers 生态
 accelerate>=0.27.0
