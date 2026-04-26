@@ -349,5 +349,15 @@ def train(config: Optional[TrainConfig] = None, **kwargs) -> str:
     with open(os.path.join(config.output_dir, "train_config.json"), "w", encoding="utf-8") as f:
         json.dump(config.to_dict(), f, indent=2, ensure_ascii=False)
 
+    # 10. 释放训练对象占用的 GPU 显存
+    # 训练完成后模型和优化器不再需要，显式删除并清理缓存，
+    # 避免后续评估阶段加载推理模型时因显存不足导致 OOM。
+    logger.info("释放训练显存...")
+    del trainer, model
+    import gc
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
     logger.info("训练完成!")
     return config.output_dir

@@ -41,9 +41,15 @@ def evaluate_model(model_path: str, test_data_path: str = "test_dataset/xguard_t
     test_data = load_xguard_test_data(test_data_path)
     logger.info(f"加载测试数据: {len(test_data)} 条")
 
+    # 加载模型前清理 GPU 显存，防止训练残留对象导致 OOM
+    import torch
+    import gc
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
     # 加载模型
     from inference import Guardrail
-    import torch
     device_id = 0 if torch.cuda.is_available() else -1
     guardrail = Guardrail(model_path, device_id=device_id)
     logger.info(f"模型加载完成: {model_path}")
