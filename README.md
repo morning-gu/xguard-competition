@@ -8,13 +8,11 @@
 
 ## LoRA 基座模型地址配置
 
-本项目使用 LoRA 微调，基座模型为 `Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B`。
+本项目使用 LoRA 微调，基座模型为 `Alibaba-AAIG/YuFeng-XGuard-Reason-8B`。
 
 若需使用本地基座模型，请修改以下文件中的模型地址：
 
-1. **`inference.py`** 第 26 行 `BASE_MODEL_ID`：将 `"Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B"` 修改为本地模型路径
-2. **`outputs/checkpoints/checkpoint-800/adapter_config.json`** 第 6 行 `base_model_name_or_path`：将 `"Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B"` 修改为本地模型路径
-3. **`configs/train_config.yaml`** 中 `base_model_path`：将 `"Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B"` 修改为本地模型路径
+**`inference.py`** 第 25 行 `BASE_MODEL_ID`：将 `"Alibaba-AAIG/YuFeng-XGuard-Reason-8B"` 修改为本地模型路径
 
 ## 额外依赖
 
