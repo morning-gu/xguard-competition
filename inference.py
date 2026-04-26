@@ -22,7 +22,7 @@ class Guardrail:
     """
 
     # LoRA checkpoint 中基座模型的远程 ID
-    BASE_MODEL_ID = "Alibaba-AAIG/YuFeng-XGuard-Reason-0.6B"
+    BASE_MODEL_ID = "Alibaba-AAIG/YuFeng-XGuard-Reason-8B"
 
     def __init__(self, model_path: str, device_id: int = 0):
         """初始化护栏模型
