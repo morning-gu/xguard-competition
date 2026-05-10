@@ -68,8 +68,37 @@ class Guardrail:
                 trust_remote_code=True,
             )
 
-        # 获取 id2risk 映射 (YuFeng-XGuard 模型内置)
-        self.id2risk = getattr(self.tokenizer, "init_kwargs", {}).get("id2risk", {})
+        self.id2risk = {
+            "sec": "Safe-Safe",
+            "pc": "Crimes and Illegal Activities-Pornographic Contraband",
+            "dc": "Crimes and Illegal Activities-Drug Crimes",
+            "dw": "Crimes and Illegal Activities-Dangerous Weapons",
+            "pi": "Crimes and Illegal Activities-Property Infringement",
+            "ec": "Crimes and Illegal Activities-Economic Crimes",
+            "ac": "Hate Speech-Abusive Curses",
+            "def": "Hate Speech-Defamation",
+            "ti": "Hate Speech-Threats and Intimidation",
+            "cy": "Hate Speech-Cyberbullying",
+            "ph": "Physical and Mental Health-Physical Health",
+            "mh": "Physical and Mental Health-Mental Health",
+            "se": "Ethics and Morality-Social Ethics",
+            "sci": "Ethics and Morality-Science Ethics",
+            "pp": "Data Privacy-Personal Privacy",
+            "cs": "Data Privacy-Commercial Secret",
+            "acc": "Cybersecurity-Access Control",
+            "mc": "Cybersecurity-Malicious Code",
+            "ha": "Cybersecurity-Hacker Attack",
+            "ps": "Cybersecurity-Physical Security",
+            "ter": "Extremism-Violent Terrorist Activities",
+            "sd": "Extremism-Social Disruption",
+            "ext": "Extremism-Extremist Ideological Trends",
+            "fin": "Inappropriate Suggestions-Finance",
+            "med": "Inappropriate Suggestions-Medicine",
+            "law": "Inappropriate Suggestions-Law",
+            "cm": "Risks Involving Minors-Corruption of Minors",
+            "ma": "Risks Involving Minors-Minor Abuse and Exploitation",
+            "md": "Risks Involving Minors-Minor Delinquency",
+        }
         self._load_chat_template()
 
     def _load_chat_template(self):
